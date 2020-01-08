@@ -3,7 +3,7 @@
 
 
 int main(int argc, char *argv[]) {
-	printf("Hello World-server\n");
+	printf("Hello Pipi-server\n");
 
 	return 0;
 }
