@@ -50,3 +50,13 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# More
+.vs
+*.sln
+group26_ex4_client/Debug/*
+group26_ex4_client/group26_ex4_client.vcxpro*
+group26_ex4_server/Debug/*
+group26_ex4_server/group26_ex4_server.vcxpro*
+
+
