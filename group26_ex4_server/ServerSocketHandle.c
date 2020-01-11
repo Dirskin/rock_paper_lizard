@@ -10,6 +10,13 @@
 
 #define NUM_OF_WORKER_THREADS 2
 #define MAX_LOOPS 3
+#include "thread_handle.h"
+#include "../shared/common.h"
+#include "../shared/socket_shared.h"
+#include "../shared/SocketSendRecvTools.h"
+
+
+#define MAX_LOOPS 1024  /* originally 3.*/
 #define SEND_STR_SIZE 35
 #define MAX_STDIN_ARG_SIZE 256
 
@@ -100,7 +107,7 @@ void MainServer(int port)
 	printf("Waiting for a client to connect...\n");
 
 	for (Loop = 0; Loop < MAX_LOOPS; Loop++)
-	//while (!received_exit);
+	//while (!received_exit); --- probelmatic for some reason
 	{
 		SOCKET AcceptSocket = accept(MainSocket, NULL, NULL);
 		if (AcceptSocket == INVALID_SOCKET)
@@ -244,10 +251,18 @@ static DWORD ServiceThread(SOCKET *t_socket)
 		}
 		else
 		{
+
+		if (STRINGS_ARE_EQUAL(AcceptedStr, "hello")) {
+			send_msg_zero_params(SERVER_APPROVED, *t_socket);
+		}
+		if (STRINGS_ARE_EQUAL(AcceptedStr, "fart")) {
+			char param_1[10] = "Aflred";
+			send_msg_one_param(SERVER_INVITE, *t_socket, param_1);
+			} else 
 			strcpy(SendStr, "I don't understand");
 		}
 
-		SendRes = SendString(SendStr, *t_socket);
+		//SendRes = SendString(SendStr, *t_socket);
 
 		if (SendRes == TRNS_FAILED)
 		{

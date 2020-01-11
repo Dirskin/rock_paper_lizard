@@ -1,7 +1,88 @@
-#include "SocketSendRecvTools.h"
+#define _CRT_SECURE_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 
+#include <stdbool.h> 
 #include <stdio.h>
 #include <string.h>
+
+#include "SocketSendRecvTools.h"
+#define MAX_MSG_LEN_ZERO_PARAMS 29 //"SERVER_PLAYER_MOVE_REQUEST"(26) +":"(1) +"\n" +"\0"  
+
+/*this function sends messages with zero params only*/
+bool send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket) {
+	char sendbuf[MAX_MSG_LEN_ZERO_PARAMS];
+	TransferResult_t res;
+	switch (msg_type) {
+	case SERVER_MAIN_MENU:
+		strcpy(sendbuf, "SERVER_MAIN_MENU:\n");
+		break;
+	case SERVER_APPROVED:
+		strcpy(sendbuf, "SERVER_APPROVED:\n");
+		break;
+	case SERVER_PLAYER_MOVE_REQUEST:
+		strcpy(sendbuf, "SERVER_PLAYER_MOVE_REQUEST:\n");
+		break;
+	case SERVER_NO_OPPONENTS:
+		strcpy(sendbuf, "SERVER_PLAYER_MOVE_REQUEST:\n");
+		break;
+	case SERVER_LEADERBOARD_MENU:
+		strcpy(sendbuf, "SERVER_LEADERBOARD_MENU:\n");
+		break;
+	case CLIENT_MAIN_MENU:
+		strcpy(sendbuf, "CLIENT_MAIN_MENU:\n");
+		break;
+	case CLIENT_CPU:
+		strcpy(sendbuf, "CLIENT_CPU:\n");
+		break;
+	case CLIENT_VERSUS:
+		strcpy(sendbuf, "CLIENT_VERSUS:\n");
+		break;
+	case CLIENT_LEADERBOARD:
+		strcpy(sendbuf, "CLIENT_LEADERBOARD:\n");
+		break;
+	case CLIENT_REPLY:
+		strcpy(sendbuf, "CLIENT_REPLY:\n");
+		break;
+	case CLIENT_REFRESH:
+		strcpy(sendbuf, "CLIENT_REFRESH:\n");
+		break;
+	case CLIENT_DISCONNECT:
+		strcpy(sendbuf, "CLIENT_DISCONNECT:\n");
+		break;
+	}
+	res = SendString(sendbuf, t_socket);
+	return (res == TRNS_SUCCEEDED ? true : false);
+}
+
+/*this function sends messages with one param only*/
+bool send_msg_one_param(e_Msg_Type msg_type, SOCKET t_socket, char *param_1) {
+	char *sendbuf;
+	TransferResult_t res;
+	sendbuf = (char *)malloc(MAX_MSG_LEN_ZERO_PARAMS + strlen(param_1));
+	if (sendbuf == NULL) {
+		printf("Error: memory allocation failed in send-buffer\n");
+		return false;
+	}
+	switch (msg_type) {
+	case CLIENT_REQUEST:
+		sprintf(sendbuf, "CLIENT_REQUEST:%s\n", param_1);
+		break;
+	case CLIENT_PLAYER_MOVE:
+		sprintf(sendbuf, "CLIENT_PLAYER_MOVE:%s\n", param_1);
+		break;
+	case SERVER_DENIED:
+		sprintf(sendbuf, "SERVER_DENIED:%s\n", param_1);
+		break;
+	case SERVER_INVITE:
+		sprintf(sendbuf, "SERVER_INVITE:%s\n", param_1);
+		break;
+	case SERVER_OPONNET_QUIT:
+		sprintf(sendbuf, "SERVER_OPONNET_QUIT:%s\n", param_1);
+		break;
+	}
+	res = SendString(sendbuf, t_socket);
+	return (res == TRNS_SUCCEEDED ? true : false);
+}
 
 TransferResult_t SendBuffer(const char* Buffer, int BytesToSend, SOCKET sd)
 {
@@ -28,7 +109,6 @@ TransferResult_t SendBuffer(const char* Buffer, int BytesToSend, SOCKET sd)
 
 TransferResult_t SendString(const char *Str, SOCKET sd)
 {
-	/* Send the the request to the server on socket sd */
 	int TotalStringSizeInBytes;
 	TransferResult_t SendRes;
 
@@ -79,7 +159,6 @@ TransferResult_t ReceiveBuffer(char* OutputBuffer, int BytesToReceive, SOCKET sd
 
 TransferResult_t ReceiveString(char** OutputStrPtr, SOCKET sd)
 {
-	/* Recv the the request to the server on socket sd */
 	int TotalStringSizeInBytes;
 	TransferResult_t RecvRes;
 	char* StrBuffer = NULL;
@@ -95,7 +174,6 @@ TransferResult_t ReceiveString(char** OutputStrPtr, SOCKET sd)
 
 	/* The request is received in two parts. First the Length of the string (stored in
 	   an int variable ), then the string itself. */
-
 	RecvRes = ReceiveBuffer(
 		(char *)(&TotalStringSizeInBytes),
 		(int)(sizeof(TotalStringSizeInBytes)), // 4 bytes
@@ -104,21 +182,18 @@ TransferResult_t ReceiveString(char** OutputStrPtr, SOCKET sd)
 	if (RecvRes != TRNS_SUCCEEDED) return RecvRes;
 
 	StrBuffer = (char*)malloc(TotalStringSizeInBytes * sizeof(char));
-
-	if (StrBuffer == NULL)
+	if (StrBuffer == NULL) {
+		printf("Error: Memory allocation receive buffer failed!\n");
 		return TRNS_FAILED;
-
+	}
 	RecvRes = ReceiveBuffer(
 		(char *)(StrBuffer),
 		(int)(TotalStringSizeInBytes),
 		sd);
 
-	if (RecvRes == TRNS_SUCCEEDED)
-	{
+	if (RecvRes == TRNS_SUCCEEDED) {
 		*OutputStrPtr = StrBuffer;
-	}
-	else
-	{
+	} else {
 		free(StrBuffer);
 	}
 

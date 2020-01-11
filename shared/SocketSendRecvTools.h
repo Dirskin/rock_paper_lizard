@@ -1,13 +1,13 @@
-
 #ifndef SOCKET_SEND_RECV_TOOLS_H
 #define SOCKET_SEND_RECV_TOOLS_H
 
 #include <winsock2.h>
+#include <stdbool.h>
+#include "../shared/common.h"
 #pragma comment(lib, "ws2_32.lib")
 
-
-typedef enum { TRNS_FAILED, TRNS_DISCONNECTED, TRNS_SUCCEEDED } TransferResult_t;
-
+bool send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket);
+bool send_msg_one_param(e_Msg_Type msg_type, SOCKET t_socket, char *param_1);
 /**
  * SendBuffer() uses a socket to send a buffer.
  * Accepts:

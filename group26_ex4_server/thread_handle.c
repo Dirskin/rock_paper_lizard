@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include "thread_handle.h"
-#include "common.h"
+#include "../shared/common.h"
 
 
 /*Returns the index of the first available handle in our clients-thread-array*/
