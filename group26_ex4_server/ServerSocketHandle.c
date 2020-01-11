@@ -5,12 +5,10 @@
 #include <string.h>
 #include <stdbool.h>
 #include <winsock2.h>
-#include "thread_handle.h"
-#include "common.h"
 #include "../shared/socket_shared.h"
 #include "../shared/SocketSendRecvTools.h"
 
-
+#define NUM_OF_WORKER_THREADS 2
 #define MAX_LOOPS 3
 #define SEND_STR_SIZE 35
 #define MAX_STDIN_ARG_SIZE 256
@@ -18,7 +16,9 @@
 /* Globals */
 HANDLE ThreadHandles[NUM_OF_WORKER_THREADS], check_exit_handle;
 SOCKET ThreadInputs[NUM_OF_WORKER_THREADS];
-static DWORD ClientThread(SOCKET *t_socket);
+static int FindFirstUnusedThreadSlot();
+static void CleanupWorkerThreads();
+static DWORD ServiceThread(SOCKET *t_socket);
 bool received_exit = false;
 
 static DWORD CheckExit(void)
@@ -109,7 +109,7 @@ void MainServer(int port)
 			goto server_cleanup_3;
 		}
 		printf("Client Connected.\n");
-		Ind = FindFirstUnusedThreadSlot(ThreadHandles);
+		Ind = FindFirstUnusedThreadSlot();
 
 		if (Ind == NUM_OF_WORKER_THREADS) //no slot is available
 		{
@@ -118,13 +118,13 @@ void MainServer(int port)
 		}
 		else {
 			ThreadInputs[Ind] = AcceptSocket; // shallow copy: don't close, AcceptSocket, instead close, ThreadInputs[Ind] when the time comes.
-			ThreadHandles[Ind] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ClientThread, &(ThreadInputs[Ind]), 0, NULL);
+			ThreadHandles[Ind] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ServiceThread, &(ThreadInputs[Ind]), 0, NULL);
 		}
 	} // while
 	/*need to add code to close thread better and to signal threads for finish.*/
 
 server_cleanup_3:
-	CleanupWorkerThreads(ThreadHandles, ThreadInputs);
+	CleanupWorkerThreads();
 
 server_cleanup_2:
 	if (closesocket(MainSocket) == SOCKET_ERROR)
@@ -135,8 +135,60 @@ server_cleanup_1:
 		printf("Failed to close Winsocket, error %ld. Ending program.\n", WSAGetLastError());
 }
 
-//Client thread is the thread that opens for each successful client connection.
-static DWORD ClientThread(SOCKET *t_socket)
+static int FindFirstUnusedThreadSlot()
+{
+	int Ind;
+
+	for (Ind = 0; Ind < NUM_OF_WORKER_THREADS; Ind++)
+	{
+		if (ThreadHandles[Ind] == NULL)
+			break;
+		else
+		{
+			// poll to check if thread finished running:
+			DWORD Res = WaitForSingleObject(ThreadHandles[Ind], 0);
+
+			if (Res == WAIT_OBJECT_0) // this thread finished running
+			{
+				CloseHandle(ThreadHandles[Ind]);
+				ThreadHandles[Ind] = NULL;
+				break;
+			}
+		}
+	}
+
+	return Ind;
+}
+
+static void CleanupWorkerThreads()
+{
+	int Ind;
+
+	for (Ind = 0; Ind < NUM_OF_WORKER_THREADS; Ind++)
+	{
+		if (ThreadHandles[Ind] != NULL)
+		{
+			// poll to check if thread finished running:
+			DWORD Res = WaitForSingleObject(ThreadHandles[Ind], INFINITE);
+
+			if (Res == WAIT_OBJECT_0)
+			{
+				closesocket(ThreadInputs[Ind]);
+				CloseHandle(ThreadHandles[Ind]);
+				ThreadHandles[Ind] = NULL;
+				break;
+			}
+			else
+			{
+				printf("Waiting for thread failed. Ending program\n");
+				return;
+			}
+		}
+	}
+}
+
+//Service thread is the thread that opens for each successful client connection and "talks" to the client.
+static DWORD ServiceThread(SOCKET *t_socket)
 {
 	char SendStr[SEND_STR_SIZE];
 
@@ -144,7 +196,7 @@ static DWORD ClientThread(SOCKET *t_socket)
 	TransferResult_t SendRes;
 	TransferResult_t RecvRes;
 
-	strcpy(SendStr, "Welcome to this server!");
+	strcpy(SendStr, "Connected to server on <ip>:<port>"); //need to add apropriate ip and port
 	SendRes = SendString(SendStr, *t_socket);
 
 	if (SendRes == TRNS_FAILED)
@@ -177,9 +229,21 @@ static DWORD ClientThread(SOCKET *t_socket)
 			printf("Got string : %s\n", AcceptedStr);
 		}
 
-		if (STRINGS_ARE_EQUAL(AcceptedStr, "hello")) {
+		if (STRINGS_ARE_EQUAL(AcceptedStr, "hello"))
+		{
 			strcpy(SendStr, "what's up?");
-		} else {
+		}
+		else if (STRINGS_ARE_EQUAL(AcceptedStr, "how are you?"))
+		{
+			strcpy(SendStr, "great");
+		}
+		else if (STRINGS_ARE_EQUAL(AcceptedStr, "bye"))
+		{
+			strcpy(SendStr, "see ya!");
+			Done = TRUE;
+		}
+		else
+		{
 			strcpy(SendStr, "I don't understand");
 		}
 
@@ -192,7 +256,6 @@ static DWORD ClientThread(SOCKET *t_socket)
 			return 1;
 		}
 
-		if (received_exit) Done = true;		/*read global and check if user entered "exit" string*/
 		free(AcceptedStr);
 	}
 	printf("Conversation ended.\n");
