@@ -10,15 +10,12 @@ typedef enum { TRNS_FAILED, TRNS_DISCONNECTED, TRNS_SUCCEEDED } TransferResult_t
 
 /**
  * SendBuffer() uses a socket to send a buffer.
- *
  * Accepts:
- * -------
  * Buffer - the buffer containing the data to be sent.
  * BytesToSend - the number of bytes from the Buffer to send.
  * sd - the socket used for communication.
  *
  * Returns:
- * -------
  * TRNS_SUCCEEDED - if sending succeeded
  * TRNS_FAILED - otherwise
  */
