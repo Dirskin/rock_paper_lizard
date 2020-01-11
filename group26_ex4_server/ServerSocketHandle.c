@@ -1,36 +1,46 @@
-
 #define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <winsock2.h>
-
 #include "../shared/socket_shared.h"
 #include "../shared/SocketSendRecvTools.h"
 
-/*oOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO*/
-
 #define NUM_OF_WORKER_THREADS 2
-
 #define MAX_LOOPS 3
-
 #define SEND_STR_SIZE 35
+#define MAX_STDIN_ARG_SIZE 256
 
-/*oOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO*/
-
-HANDLE ThreadHandles[NUM_OF_WORKER_THREADS];
+/* Globals */
+HANDLE ThreadHandles[NUM_OF_WORKER_THREADS], check_exit_handle;
 SOCKET ThreadInputs[NUM_OF_WORKER_THREADS];
-
-/*oOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO*/
-
 static int FindFirstUnusedThreadSlot();
 static void CleanupWorkerThreads();
 static DWORD ServiceThread(SOCKET *t_socket);
+bool received_exit = false;
 
-/*oOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO*/
+static DWORD CheckExit(void)
+{
+	char str_in[MAX_STDIN_ARG_SIZE];
+	while (1) {
+		scanf("%s", str_in);
+		
+		if (strcmp(str_in, "exit")==0) {
+			printf("exiting, bye\n");
+			received_exit = true;
+			return 0;
+		}
+	}
+}
+HANDLE start_exit_thread() {
+	HANDLE ret_handle;
+	ret_handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)CheckExit, NULL, 0, NULL);
+	return ret_handle;
+}
 
-void MainServer()
+void MainServer(int port)
 {
 	int Ind;
 	int Loop;
@@ -43,65 +53,37 @@ void MainServer()
 	// Initialize Winsock.
 	WSADATA wsaData;
 	int StartupRes = WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-	if (StartupRes != NO_ERROR)
-	{
-		printf("error %ld at WSAStartup( ), ending program.\n", WSAGetLastError());
-		// Tell the user that we could not find a usable WinSock DLL.                                  
+	if (StartupRes != NO_ERROR) {
+		printf("error %ld at WSAStartup( ), ending program.\n", WSAGetLastError());                                
 		return;
 	}
-
-	/* The WinSock DLL is acceptable. Proceed. */
-
-	// Create a socket.    
-	MainSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-	if (MainSocket == INVALID_SOCKET)
-	{
+ 
+	MainSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);  /* Server side socket creation*/
+	if (MainSocket == INVALID_SOCKET) {
 		printf("Error at socket( ): %ld\n", WSAGetLastError());
 		goto server_cleanup_1;
 	}
 
-	// Bind the socket.
-	/*
-		For a server to accept client connections, it must be bound to a network address within the system.
-		The following code demonstrates how to bind a socket that has already been created to an IP address
-		and port.
-		Client applications use the IP address and port to connect to the host network.
-		The sockaddr structure holds information regarding the address family, IP address, and port number.
-		sockaddr_in is a subset of sockaddr and is used for IP version 4 applications.
-   */
-   // Create a sockaddr_in object and set its values.
-   // Declare variables
-
+	// create SOCKADDR params and Bind the socket
 	Address = inet_addr(SERVER_ADDRESS_STR);
-	if (Address == INADDR_NONE)
-	{
+	if (Address == INADDR_NONE) {
 		printf("The string \"%s\" cannot be converted into an ip address. ending program.\n",
 			SERVER_ADDRESS_STR);
 		goto server_cleanup_2;
 	}
 
 	service.sin_family = AF_INET;
-	service.sin_addr.s_addr = Address;
-	service.sin_port = htons(SERVER_PORT); //The htons function converts a u_short from host to TCP/IP network byte order 
-									   //( which is big-endian ).
-	/*
-		The three lines following the declaration of sockaddr_in service are used to set up
-		the sockaddr structure:
-		AF_INET is the Internet address family.
-		"127.0.0.1" is the local IP address to which the socket will be bound.
-		2345 is the port number to which the socket will be bound.
-	*/
+	service.sin_addr.s_addr = Address; /* TO CHECK!! --- "127.0.0.1" is the local IP address to which the socket will be bound.*/
+	service.sin_port = htons(port); 
 
-	// Call the bind function, passing the created socket and the sockaddr_in structure as parameters. 
-	// Check for general errors.
 	bindRes = bind(MainSocket, (SOCKADDR*)&service, sizeof(service));
 	if (bindRes == SOCKET_ERROR)
 	{
 		printf("bind( ) failed with error %ld. Ending program\n", WSAGetLastError());
 		goto server_cleanup_2;
 	}
+
+	check_exit_handle = start_exit_thread(); /*Run thread in background to check for "exit" in console*/
 
 	// Listen on the Socket.
 	ListenRes = listen(MainSocket, SOMAXCONN);
@@ -118,6 +100,7 @@ void MainServer()
 	printf("Waiting for a client to connect...\n");
 
 	for (Loop = 0; Loop < MAX_LOOPS; Loop++)
+	//while (!received_exit);
 	{
 		SOCKET AcceptSocket = accept(MainSocket, NULL, NULL);
 		if (AcceptSocket == INVALID_SOCKET)
@@ -125,9 +108,7 @@ void MainServer()
 			printf("Accepting connection with client failed, error %ld\n", WSAGetLastError());
 			goto server_cleanup_3;
 		}
-
 		printf("Client Connected.\n");
-
 		Ind = FindFirstUnusedThreadSlot();
 
 		if (Ind == NUM_OF_WORKER_THREADS) //no slot is available
@@ -135,25 +116,14 @@ void MainServer()
 			printf("No slots available for client, dropping the connection.\n");
 			closesocket(AcceptSocket); //Closing the socket, dropping the connection.
 		}
-		else
-		{
-			ThreadInputs[Ind] = AcceptSocket; // shallow copy: don't close 
-											  // AcceptSocket, instead close 
-											  // ThreadInputs[Ind] when the
-											  // time comes.
-			ThreadHandles[Ind] = CreateThread(
-				NULL,
-				0,
-				(LPTHREAD_START_ROUTINE)ServiceThread,
-				&(ThreadInputs[Ind]),
-				0,
-				NULL
-			);
+		else {
+			ThreadInputs[Ind] = AcceptSocket; // shallow copy: don't close, AcceptSocket, instead close, ThreadInputs[Ind] when the time comes.
+			ThreadHandles[Ind] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ServiceThread, &(ThreadInputs[Ind]), 0, NULL);
 		}
-	} // for ( Loop = 0; Loop < MAX_LOOPS; Loop++ )
+	} // while
+	/*need to add code to close thread better and to signal threads for finish.*/
 
 server_cleanup_3:
-
 	CleanupWorkerThreads();
 
 server_cleanup_2:
@@ -164,8 +134,6 @@ server_cleanup_1:
 	if (WSACleanup() == SOCKET_ERROR)
 		printf("Failed to close Winsocket, error %ld. Ending program.\n", WSAGetLastError());
 }
-
-/*oOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO*/
 
 static int FindFirstUnusedThreadSlot()
 {
@@ -191,8 +159,6 @@ static int FindFirstUnusedThreadSlot()
 
 	return Ind;
 }
-
-/*oOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO*/
 
 static void CleanupWorkerThreads()
 {
@@ -221,8 +187,6 @@ static void CleanupWorkerThreads()
 	}
 }
 
-/*oOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoOoO*/
-
 //Service thread is the thread that opens for each successful client connection and "talks" to the client.
 static DWORD ServiceThread(SOCKET *t_socket)
 {
@@ -233,7 +197,6 @@ static DWORD ServiceThread(SOCKET *t_socket)
 	TransferResult_t RecvRes;
 
 	strcpy(SendStr, "Welcome to this server!");
-
 	SendRes = SendString(SendStr, *t_socket);
 
 	if (SendRes == TRNS_FAILED)
@@ -266,12 +229,6 @@ static DWORD ServiceThread(SOCKET *t_socket)
 			printf("Got string : %s\n", AcceptedStr);
 		}
 
-		//After reading a single line, checking to see what to do with it
-		//If got "hello" send back "what's up?"
-		//If got "how are you?" send back "great"
-		//If got "bye" send back "see ya!" and then end the thread
-		//Otherwise, send "I don't understand"
-
 		if (STRINGS_ARE_EQUAL(AcceptedStr, "hello"))
 		{
 			strcpy(SendStr, "what's up?");
@@ -301,7 +258,6 @@ static DWORD ServiceThread(SOCKET *t_socket)
 
 		free(AcceptedStr);
 	}
-
 	printf("Conversation ended.\n");
 	closesocket(*t_socket);
 	return 0;

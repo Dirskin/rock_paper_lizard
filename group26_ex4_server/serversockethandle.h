@@ -2,7 +2,7 @@
 #define SOCKET_EXAMPLE_SERVER_H
 
 
-void MainServer();
+void MainServer(int port);
 
 
 #endif // SOCKET_EXAMPLE_SERVER_H

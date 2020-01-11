@@ -1,8 +1,16 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "serversockethandle.h"
 
 
-int main()
+int main(int argc, char *argv[])
 {
-	MainServer();
+	int port = 0;
+	if (argc < 2) {
+		printf("Missing input port. usage: group26_ex4_server <port>\n exiting...\n");
+		exit(-1);
+	}
+	port = atoi(argv[1]);
+	printf("listening on %d...\n", port);
+	MainServer(port);
 }
