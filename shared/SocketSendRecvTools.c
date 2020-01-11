@@ -54,6 +54,36 @@ bool send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket) {
 	return (res == TRNS_SUCCEEDED ? true : false);
 }
 
+/*this function sends messages with one param only*/
+bool send_msg_one_param(e_Msg_Type msg_type, SOCKET t_socket, char *param_1) {
+	char *sendbuf;
+	TransferResult_t res;
+	sendbuf = (char *)malloc(MAX_MSG_LEN_ZERO_PARAMS + strlen(param_1));
+	if (sendbuf == NULL) {
+		printf("Error: memory allocation failed in send-buffer\n");
+		return false;
+	}
+	switch (msg_type) {
+	case CLIENT_REQUEST:
+		sprintf(sendbuf, "CLIENT_REQUEST:%s\n", param_1);
+		break;
+	case CLIENT_PLAYER_MOVE:
+		sprintf(sendbuf, "CLIENT_PLAYER_MOVE:%s\n", param_1);
+		break;
+	case SERVER_DENIED:
+		sprintf(sendbuf, "SERVER_DENIED:%s\n", param_1);
+		break;
+	case SERVER_INVITE:
+		sprintf(sendbuf, "SERVER_INVITE:%s\n", param_1);
+		break;
+	case SERVER_OPONNET_QUIT:
+		sprintf(sendbuf, "SERVER_OPONNET_QUIT:%s\n", param_1);
+		break;
+	}
+	res = SendString(sendbuf, t_socket);
+	return (res == TRNS_SUCCEEDED ? true : false);
+}
+
 TransferResult_t SendBuffer(const char* Buffer, int BytesToSend, SOCKET sd)
 {
 	const char* CurPlacePtr = Buffer;

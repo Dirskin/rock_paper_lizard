@@ -6,7 +6,7 @@
 #include <stdbool.h>
 #include <winsock2.h>
 #include "thread_handle.h"
-#include "common.h"
+#include "../shared/common.h"
 #include "../shared/socket_shared.h"
 #include "../shared/SocketSendRecvTools.h"
 
@@ -179,7 +179,11 @@ static DWORD ClientThread(SOCKET *t_socket)
 
 		if (STRINGS_ARE_EQUAL(AcceptedStr, "hello")) {
 			send_msg_zero_params(SERVER_APPROVED, *t_socket);
-		} else {
+		}
+		if (STRINGS_ARE_EQUAL(AcceptedStr, "fart")) {
+			char param_1[10] = "Aflred";
+			send_msg_one_param(SERVER_INVITE, *t_socket, param_1);
+			} else {
 			strcpy(SendStr, "I don't understand");
 		}
 
