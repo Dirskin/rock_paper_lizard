@@ -11,7 +11,7 @@
 #include "../shared/SocketSendRecvTools.h"
 
 
-#define MAX_LOOPS 3
+#define MAX_LOOPS 1024  /* originally 3.*/
 #define SEND_STR_SIZE 35
 #define MAX_STDIN_ARG_SIZE 256
 
@@ -100,7 +100,7 @@ void MainServer(int port)
 	printf("Waiting for a client to connect...\n");
 
 	for (Loop = 0; Loop < MAX_LOOPS; Loop++)
-	//while (!received_exit);
+	//while (!received_exit); --- probelmatic for some reason
 	{
 		SOCKET AcceptSocket = accept(MainSocket, NULL, NULL);
 		if (AcceptSocket == INVALID_SOCKET)
@@ -178,12 +178,12 @@ static DWORD ClientThread(SOCKET *t_socket)
 		}
 
 		if (STRINGS_ARE_EQUAL(AcceptedStr, "hello")) {
-			strcpy(SendStr, "what's up?");
+			send_msg_zero_params(SERVER_APPROVED, *t_socket);
 		} else {
 			strcpy(SendStr, "I don't understand");
 		}
 
-		SendRes = SendString(SendStr, *t_socket);
+		//SendRes = SendString(SendStr, *t_socket);
 
 		if (SendRes == TRNS_FAILED)
 		{

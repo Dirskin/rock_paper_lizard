@@ -1,12 +1,22 @@
-
 #ifndef SOCKET_SEND_RECV_TOOLS_H
 #define SOCKET_SEND_RECV_TOOLS_H
 
 #include <winsock2.h>
+#include <stdbool.h>
 #pragma comment(lib, "ws2_32.lib")
 
+typedef enum { CLIENT_REQUEST, CLIENT_MAIN_MENU, CLIENT_CPU, CLIENT_VERSUS,
+			   CLIENT_LEADERBOARD, CLIENT_PLAYER_MOVE, CLIENT_REPLY,
+			   CLIENT_REFRESH, CLIENT_DISCONNECT,
+			   SERVER_MAIN_MENU, SERVER_APPROVED, SERVER_DENIED, SERVER_INVITE,
+			   SERVER_PLAYER_MOVE_REQUEST, SERVER_GAME_RESULTS, SERVER_GAME_OVER_MENU,
+			   SERVER_OPONNET_QUIT, SERVER_NO_OPPONENTS, SERVER_LEADERBOARD,
+			   SERVER_LEADERBOARD_MENU } e_Msg_Type;
 
 typedef enum { TRNS_FAILED, TRNS_DISCONNECTED, TRNS_SUCCEEDED } TransferResult_t;
+
+
+bool send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket);
 
 /**
  * SendBuffer() uses a socket to send a buffer.
