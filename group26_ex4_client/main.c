@@ -1,9 +1,7 @@
 #include <stdio.h>
+#include "clientsockethandle.h"
 
-
-
-int main(int argc, char *argv[]) {
-	printf("Hello Kaki\n");
-	
-	return 0;
+int main()
+{
+	MainClient();
 }
