@@ -1,4 +1,4 @@
-
+#define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 #include <stdio.h>
@@ -10,6 +10,8 @@
 
 
 SOCKET m_socket;
+bool threads_are_alive = FALSE, expecting_user_input=false;
+
 
 int failed_connection(const char *server_ip_addr, int port, int flag_type) {
 	int decision;
@@ -27,7 +29,7 @@ int failed_connection(const char *server_ip_addr, int port, int flag_type) {
 
 	printf("Choose what to do next:\n1. Try to reconnect\n2. Exit\n");
 	while (1) {
-		scanf_s("%d", &decision);
+		scanf("%d", &decision);
 		if (decision == 1) { //chooses to try to reconnect
 			printf("thanks for choosing 1\n");
 			return 0;
@@ -41,65 +43,95 @@ int failed_connection(const char *server_ip_addr, int port, int flag_type) {
 		}
 
 	}
+	return 0;
 }
 
 
 //Reading data coming from the server
-static DWORD RecvDataThread(const char *server_ip_addr, int port)
+static DWORD RecvDataThread(void)
 {
 	TransferResult_t RecvRes;
 	int err;
 
-	while (1)
+	while (threads_are_alive)
 	{
 		char *AcceptedStr = NULL;
 		RecvRes = ReceiveString(&AcceptedStr, m_socket);
 
 		if (RecvRes == TRNS_FAILED) {
-			err = failed_connection(server_ip_addr, port, F_SERVER_CONNECTION_LOST);
-			return err;
+			return (DWORD)F_SERVER_CONNECTION_LOST;
 		}
 		else if (RecvRes == TRNS_DISCONNECTED) {
-			err = failed_connection(server_ip_addr, port, F_SERVER_CONNECTION_LOST);
-			return err;
+
+			return (DWORD)F_SERVER_CONNECTION_LOST;
 		}
-		else
-		{
+		else {
 			printf("%s\n", AcceptedStr);
 		}
 
 		free(AcceptedStr);
 	}
 
-	return 0;
+	return (DWORD)0;
 }
 
 //Sending data to the server
-static DWORD SendDataThread(void)
+static DWORD SendDataThread(char *username)
 {
-	char SendStr[256];
 	TransferResult_t SendRes;
+	char SendStr[256];
+	bool new_connection = true;
 
-	while (1)
+	while (threads_are_alive)
 	{
-		gets_s(SendStr, sizeof(SendStr)); //Reading a string from the keyboard
+		if (new_connection) {
+			strcpy(SendStr, username);
+			SendRes = send_msg_one_param(CLIENT_REQUEST, m_socket, username);
+			new_connection = false;
+			Sleep(5000);
+		} else {
+			gets_s(SendStr, sizeof(SendStr)); //Reading a string from the keyboard
+			SendRes = SendString(SendStr, m_socket);
+		}
 
-		if (STRINGS_ARE_EQUAL(SendStr, "quit"))
-			return 0x555; //"quit" signals an exit from the client side
-
-		SendRes = SendString(SendStr, m_socket);
-
-		if (SendRes == TRNS_FAILED)
-		{
+		if (SendRes == TRNS_FAILED) {
 			printf("Socket error while trying to write data to socket\n");
-			return 0x555;
+			return (DWORD)0x555;
 		}
 	}
+	return (DWORD)0;
+}
+DWORD client_service_thread(Flow_param *flow_param) {
+	HANDLE hThread[2];
+	int err=0;
+	DWORD wait_code;
+	threads_are_alive = TRUE;
+	hThread[0] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)SendDataThread, flow_param->username, 0, NULL);
+	hThread[1] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RecvDataThread, NULL , 0, NULL);
+	
+
+	wait_code = WaitForSingleObject(hThread[1], INFINITE);
+	GetExitCodeThread(hThread[1] ,&err);
+	if (err < 0) {
+		err = failed_connection(flow_param->ip, flow_param->port, err);
+		threads_are_alive = FALSE;
+	}
+	WaitForMultipleObjects(2, hThread, FALSE, INFINITE);
+
+	//TerminateThread(hThread[0], 0x555);
+	//TerminateThread(hThread[1], 0x555);
+
+	CloseHandle(hThread[0]);
+	CloseHandle(hThread[1]);
+	return 0;
 }
 
-int MainClient(const char *server_ip_addr, int server_port) {
+
+int MainClient(const char *server_ip_addr, int server_port, char *username) {
 	SOCKADDR_IN clientService;
-	HANDLE hThread[2];
+	Flow_param flow_param;
+	DWORD wait_code;
+	HANDLE hThread;
 	int err;
 	// Initialize Winsock.
 	WSADATA wsaData; //Create a WSADATA object called wsaData.
@@ -107,6 +139,10 @@ int MainClient(const char *server_ip_addr, int server_port) {
 	if (iResult != NO_ERROR)
 		printf("Error at WSAStartup()\n");
 
+	//Initializing the struct 
+	flow_param.ip = server_ip_addr;
+	flow_param.port = server_port;
+	flow_param.username = username;
 	// Create a socket.
 	m_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -125,34 +161,12 @@ int MainClient(const char *server_ip_addr, int server_port) {
 		return err;		/*Thats not an error: user chose to exit*/
 		}
 	printf("Connected to server on %s:%d\n", server_ip_addr, server_port);
-
-	hThread[0] = CreateThread(
-		NULL,
-		0,
-		(LPTHREAD_START_ROUTINE)SendDataThread,
-		NULL,
-		0,
-		NULL
-	);
-	hThread[1] = CreateThread(
-		NULL,
-		0,
-		(LPTHREAD_START_ROUTINE)RecvDataThread(server_ip_addr, server_port),
-		NULL,
-		0,
-		NULL
-	);
-
-	WaitForMultipleObjects(2, hThread, FALSE, INFINITE);
-
-	TerminateThread(hThread[0], 0x555);
-	TerminateThread(hThread[1], 0x555);
-
-	CloseHandle(hThread[0]);
-	CloseHandle(hThread[1]);
+	hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)client_service_thread, &flow_param, 0, NULL);
+	wait_code = WaitForSingleObject(hThread, INFINITE);
+	GetExitCodeThread(hThread, &err);
 
 	closesocket(m_socket);
-
+	CloseHandle(hThread);
 	WSACleanup();
 
 	return 0;

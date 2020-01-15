@@ -5,11 +5,12 @@
 int main(int argc, char *argv[])
 {
 	int err, port = 0;
-	if (argc < 3) {
-		printf("Not enough arguments.\n usage: group26_ex4_client <ip> <port>\n exiting...\n");
+	char *ip = argv[1], *username = argv[3];
+	if (argc < 4) {
+		printf("Not enough arguments.\n usage: group26_ex4_client <ip> <port> <username>\n exiting...\n");
 		return (-1);
 	}
 	port = atoi(argv[2]);
-	err = MainClient(argv[1], port);
+	err = MainClient(ip, port, username);
 	return err;
 }

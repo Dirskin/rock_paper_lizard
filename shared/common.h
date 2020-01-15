@@ -34,5 +34,12 @@ typedef struct RX_msg {
 	char *arg_4;
 } RX_msg;
 
+typedef struct Flow_param {
+	char *username;
+	char *ip;
+	int port;
+} Flow_param;
+
+
 #endif // !COMMON_H
 
