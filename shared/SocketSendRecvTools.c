@@ -9,7 +9,7 @@
 #define MAX_MSG_LEN_ZERO_PARAMS 29 //"SERVER_PLAYER_MOVE_REQUEST"(26) +":"(1) +"\n" +"\0"  
 
 /*this function sends messages with zero params only*/
-bool send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket) {
+TransferResult_t send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket) {
 	char sendbuf[MAX_MSG_LEN_ZERO_PARAMS];
 	TransferResult_t res;
 	switch (msg_type) {
@@ -51,11 +51,11 @@ bool send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket) {
 		break;
 	}
 	res = SendString(sendbuf, t_socket);
-	return (res == TRNS_SUCCEEDED ? true : false);
+	return res;
 }
 
 /*this function sends messages with one param only*/
-bool send_msg_one_param(e_Msg_Type msg_type, SOCKET t_socket, char *param_1) {
+TransferResult_t send_msg_one_param(e_Msg_Type msg_type, SOCKET t_socket, char *param_1) {
 	char *sendbuf;
 	TransferResult_t res;
 	sendbuf = (char *)malloc(MAX_MSG_LEN_ZERO_PARAMS + strlen(param_1));
@@ -81,7 +81,7 @@ bool send_msg_one_param(e_Msg_Type msg_type, SOCKET t_socket, char *param_1) {
 		break;
 	}
 	res = SendString(sendbuf, t_socket);
-	return (res == TRNS_SUCCEEDED ? true : false);
+	return res;
 }
 
 TransferResult_t SendBuffer(const char* Buffer, int BytesToSend, SOCKET sd)
@@ -94,9 +94,7 @@ TransferResult_t SendBuffer(const char* Buffer, int BytesToSend, SOCKET sd)
 	{
 		/* send does not guarantee that the entire message is sent */
 		BytesTransferred = send(sd, CurPlacePtr, RemainingBytesToSend, 0);
-		if (BytesTransferred == SOCKET_ERROR)
-		{
-			printf("send() failed, error %d\n", WSAGetLastError());
+		if (BytesTransferred == SOCKET_ERROR) {
 			return TRNS_FAILED;
 		}
 
@@ -142,9 +140,7 @@ TransferResult_t ReceiveBuffer(char* OutputBuffer, int BytesToReceive, SOCKET sd
 	{
 		/* send does not guarantee that the entire message is sent */
 		BytesJustTransferred = recv(sd, CurPlacePtr, RemainingBytesToReceive, 0);
-		if (BytesJustTransferred == SOCKET_ERROR)
-		{
-			printf("recv() failed, error %d\n", WSAGetLastError());
+		if (BytesJustTransferred == SOCKET_ERROR) {
 			return TRNS_FAILED;
 		}
 		else if (BytesJustTransferred == 0)

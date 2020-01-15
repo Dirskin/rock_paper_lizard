@@ -8,6 +8,9 @@
 
 /* defines */
 #define NUM_OF_WORKER_THREADS 2
+#define ERR -1
+#define ERR_SOCKET (-11)
+
 
 /*enums*/
 typedef enum {

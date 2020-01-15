@@ -9,7 +9,6 @@
 #include "../shared/SocketSendRecvTools.h"
 
 #define NUM_OF_WORKER_THREADS 2
-#define MAX_LOOPS 3
 #include "thread_handle.h"
 #include "../shared/common.h"
 #include "../shared/socket_shared.h"
@@ -23,10 +22,13 @@
 /* Globals */
 HANDLE ThreadHandles[NUM_OF_WORKER_THREADS], check_exit_handle;
 SOCKET ThreadInputs[NUM_OF_WORKER_THREADS];
-static int FindFirstUnusedThreadSlot();
-static void CleanupWorkerThreads();
-static DWORD ServiceThread(SOCKET *t_socket);
 bool received_exit = false;
+
+
+/*Function Declarations*/
+static int FindFirstUnusedThreadSlot(void);
+static void CleanupWorkerThreads(void);
+static DWORD ServiceThread(SOCKET *t_socket);
 
 static DWORD CheckExit(void)
 {
@@ -142,7 +144,7 @@ server_cleanup_1:
 		printf("Failed to close Winsocket, error %ld. Ending program.\n", WSAGetLastError());
 }
 
-static int FindFirstUnusedThreadSlot()
+static int FindFirstUnusedThreadSlot(void)
 {
 	int Ind;
 
@@ -167,7 +169,7 @@ static int FindFirstUnusedThreadSlot()
 	return Ind;
 }
 
-static void CleanupWorkerThreads()
+static void CleanupWorkerThreads(void)
 {
 	int Ind;
 
@@ -200,18 +202,8 @@ static DWORD ServiceThread(SOCKET *t_socket)
 	char SendStr[SEND_STR_SIZE];
 
 	BOOL Done = FALSE;
-	TransferResult_t SendRes;
+	TransferResult_t SendRes = TRNS_SUCCEEDED;
 	TransferResult_t RecvRes;
-
-	strcpy(SendStr, "Connected to server on <ip>:<port>"); //need to add apropriate ip and port
-	SendRes = SendString(SendStr, *t_socket);
-
-	if (SendRes == TRNS_FAILED)
-	{
-		printf("Service socket error while writing, closing thread.\n");
-		closesocket(*t_socket);
-		return 1;
-	}
 
 	while (!Done)
 	{
@@ -236,33 +228,13 @@ static DWORD ServiceThread(SOCKET *t_socket)
 			printf("Got string : %s\n", AcceptedStr);
 		}
 
-		if (STRINGS_ARE_EQUAL(AcceptedStr, "hello"))
-		{
-			strcpy(SendStr, "what's up?");
-		}
-		else if (STRINGS_ARE_EQUAL(AcceptedStr, "how are you?"))
-		{
-			strcpy(SendStr, "great");
-		}
-		else if (STRINGS_ARE_EQUAL(AcceptedStr, "bye"))
-		{
-			strcpy(SendStr, "see ya!");
-			Done = TRUE;
-		}
-		else
-		{
-
 		if (STRINGS_ARE_EQUAL(AcceptedStr, "hello")) {
-			send_msg_zero_params(SERVER_APPROVED, *t_socket);
+			SendRes = send_msg_zero_params(SERVER_APPROVED, *t_socket);
 		}
 		if (STRINGS_ARE_EQUAL(AcceptedStr, "fart")) {
 			char param_1[10] = "Aflred";
-			send_msg_one_param(SERVER_INVITE, *t_socket, param_1);
-			} else 
-			strcpy(SendStr, "I don't understand");
-		}
-
-		//SendRes = SendString(SendStr, *t_socket);
+			SendRes = send_msg_one_param(SERVER_INVITE, *t_socket, param_1);
+		} else strcpy(SendStr, "I don't understand");
 
 		if (SendRes == TRNS_FAILED)
 		{
