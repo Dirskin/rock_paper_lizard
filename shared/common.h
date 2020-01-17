@@ -13,6 +13,10 @@
 #define ERR -1
 #define ERR_MALLOC (-2)
 #define ERR_SOCKET (-11)
+#define ERR_SOCKET_SEND (-12)
+#define ERR_SOCKET_TRANS (-13)
+#define ERR_SOCKET_DISCONNECT (-14)
+
 
 
 /*enums*/

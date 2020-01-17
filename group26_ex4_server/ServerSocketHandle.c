@@ -26,7 +26,7 @@ bool received_exit = false;
 
 
 /*Function Declarations*/
-static DWORD ServiceThread(SOCKET *t_socket);
+static DWORD ClientThread(SOCKET *t_socket);
 
 static DWORD CheckExit(void)
 {
@@ -125,7 +125,7 @@ void MainServer(int port)
 		}
 		else {
 			ThreadInputs[Ind] = AcceptSocket; // shallow copy: don't close, AcceptSocket, instead close, ThreadInputs[Ind] when the time comes.
-			ThreadHandles[Ind] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ServiceThread, &(ThreadInputs[Ind]), 0, NULL);
+			ThreadHandles[Ind] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ClientThread, &(ThreadInputs[Ind]), 0, NULL);
 		}
 	} // while
 	/*need to add code to close thread better and to signal threads for finish.*/
@@ -142,47 +142,62 @@ server_cleanup_1:
 		printf("Failed to close Winsocket, error %ld. Ending program.\n", WSAGetLastError());
 }
 
+int get_response(RX_msg **rx_msg, SOCKET *t_socket) {
+	TransferResult_t RecvRes;
+	char *AcceptedStr = NULL;
+
+	RecvRes = ReceiveString(&AcceptedStr, *t_socket);
+
+	if (RecvRes == TRNS_FAILED) {
+		printf("Service socket error while reading, closing thread.\n");
+		closesocket(*t_socket);
+		return ERR_SOCKET_TRANS;
+	}
+	else if (RecvRes == TRNS_DISCONNECTED) {
+		printf("Connection closed while reading, closing thread.\n");
+		closesocket(*t_socket);
+		return ERR_SOCKET_DISCONNECT;
+	}
+	else {
+		printf("Got string : %s\n", AcceptedStr);
+		*rx_msg = parse_message_params(AcceptedStr);
+		
+		return 0;
+	}
+	free(AcceptedStr);
+}
+
+
 //Service thread is the thread that opens for each successful client connection and "talks" to the client.
-static DWORD ServiceThread(SOCKET *t_socket)
+static DWORD ClientThread(SOCKET *t_socket)
 {
 	char SendStr[SEND_STR_SIZE];
 	BOOL Done = FALSE;
-	RX_msg *rx_msg;
-	TransferResult_t SendRes = TRNS_SUCCEEDED;
+	int err;
+	RX_msg *rx_msg = NULL;
+	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED;;
 	TransferResult_t RecvRes;
 
 	while (!Done)
 	{
-		char *AcceptedStr = NULL;
-
-		RecvRes = ReceiveString(&AcceptedStr, *t_socket);
-
-		if (RecvRes == TRNS_FAILED) {
-			printf("Service socket error while reading, closing thread.\n");
-			closesocket(*t_socket);
-			return 1;
-		}
-		else if (RecvRes == TRNS_DISCONNECTED) {
-			printf("Connection closed while reading, closing thread.\n");
-			closesocket(*t_socket);
-			return 1;
-		}
-		else {
-			printf("Got string : %s\n", AcceptedStr);
-			rx_msg = parse_message_params(AcceptedStr);
-		}
-		if (rx_msg->msg_type == CLIENT_REQUEST) {
-			SendRes = send_msg_zero_params(SERVER_APPROVED, *t_socket);
+		err = get_response(&rx_msg, t_socket);
+		if (err) {
+			//go to function with error code and handle it or something else 
+			;
 		}
 
-		if (SendRes == TRNS_FAILED)
+		if (rx_msg != NULL) {
+			if (rx_msg->msg_type == CLIENT_REQUEST) {
+				SendRes = send_msg_zero_params(SERVER_APPROVED, *t_socket);
+				SendRes2 = send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
+			}
+		}
+		if (SendRes == TRNS_FAILED || SendRes2 == TRNS_FAILED)
 		{
 			printf("Service socket error while writing, closing thread.\n");
 			closesocket(*t_socket);
-			return 1;
+			return ERR_SOCKET_SEND;
 		}
-
-		free(AcceptedStr);
 	}
 	printf("Conversation ended.\n");
 	closesocket(*t_socket);
