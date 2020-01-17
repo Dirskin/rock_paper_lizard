@@ -26,8 +26,6 @@ bool received_exit = false;
 
 
 /*Function Declarations*/
-static int FindFirstUnusedThreadSlot(void);
-static void CleanupWorkerThreads(void);
 static DWORD ServiceThread(SOCKET *t_socket);
 
 static DWORD CheckExit(void)
@@ -118,7 +116,7 @@ void MainServer(int port)
 			goto server_cleanup_3;
 		}
 		printf("Client Connected.\n");
-		Ind = FindFirstUnusedThreadSlot();
+		Ind = FindFirstUnusedThreadSlot(ThreadHandles);
 
 		if (Ind == NUM_OF_WORKER_THREADS) //no slot is available
 		{
@@ -133,7 +131,7 @@ void MainServer(int port)
 	/*need to add code to close thread better and to signal threads for finish.*/
 
 server_cleanup_3:
-	CleanupWorkerThreads();
+	CleanupWorkerThreads(ThreadHandles, ThreadInputs);
 
 server_cleanup_2:
 	if (closesocket(MainSocket) == SOCKET_ERROR)
@@ -144,64 +142,12 @@ server_cleanup_1:
 		printf("Failed to close Winsocket, error %ld. Ending program.\n", WSAGetLastError());
 }
 
-static int FindFirstUnusedThreadSlot(void)
-{
-	int Ind;
-
-	for (Ind = 0; Ind < NUM_OF_WORKER_THREADS; Ind++)
-	{
-		if (ThreadHandles[Ind] == NULL)
-			break;
-		else
-		{
-			// poll to check if thread finished running:
-			DWORD Res = WaitForSingleObject(ThreadHandles[Ind], 0);
-
-			if (Res == WAIT_OBJECT_0) // this thread finished running
-			{
-				CloseHandle(ThreadHandles[Ind]);
-				ThreadHandles[Ind] = NULL;
-				break;
-			}
-		}
-	}
-
-	return Ind;
-}
-
-static void CleanupWorkerThreads(void)
-{
-	int Ind;
-
-	for (Ind = 0; Ind < NUM_OF_WORKER_THREADS; Ind++)
-	{
-		if (ThreadHandles[Ind] != NULL)
-		{
-			// poll to check if thread finished running:
-			DWORD Res = WaitForSingleObject(ThreadHandles[Ind], INFINITE);
-
-			if (Res == WAIT_OBJECT_0)
-			{
-				closesocket(ThreadInputs[Ind]);
-				CloseHandle(ThreadHandles[Ind]);
-				ThreadHandles[Ind] = NULL;
-				break;
-			}
-			else
-			{
-				printf("Waiting for thread failed. Ending program\n");
-				return;
-			}
-		}
-	}
-}
-
 //Service thread is the thread that opens for each successful client connection and "talks" to the client.
 static DWORD ServiceThread(SOCKET *t_socket)
 {
 	char SendStr[SEND_STR_SIZE];
-
 	BOOL Done = FALSE;
+	RX_msg *rx_msg;
 	TransferResult_t SendRes = TRNS_SUCCEEDED;
 	TransferResult_t RecvRes;
 
@@ -211,30 +157,23 @@ static DWORD ServiceThread(SOCKET *t_socket)
 
 		RecvRes = ReceiveString(&AcceptedStr, *t_socket);
 
-		if (RecvRes == TRNS_FAILED)
-		{
+		if (RecvRes == TRNS_FAILED) {
 			printf("Service socket error while reading, closing thread.\n");
 			closesocket(*t_socket);
 			return 1;
 		}
-		else if (RecvRes == TRNS_DISCONNECTED)
-		{
+		else if (RecvRes == TRNS_DISCONNECTED) {
 			printf("Connection closed while reading, closing thread.\n");
 			closesocket(*t_socket);
 			return 1;
 		}
-		else
-		{
+		else {
 			printf("Got string : %s\n", AcceptedStr);
+			rx_msg = parse_message_params(AcceptedStr);
 		}
-
-		if (STRINGS_ARE_EQUAL(AcceptedStr, "hello")) {
+		if (rx_msg->msg_type == CLIENT_REQUEST) {
 			SendRes = send_msg_zero_params(SERVER_APPROVED, *t_socket);
 		}
-		if (STRINGS_ARE_EQUAL(AcceptedStr, "fart")) {
-			char param_1[10] = "Aflred";
-			SendRes = send_msg_one_param(SERVER_INVITE, *t_socket, param_1);
-		} else strcpy(SendStr, "I don't understand");
 
 		if (SendRes == TRNS_FAILED)
 		{

@@ -8,6 +8,9 @@
 
 TransferResult_t send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket);
 TransferResult_t send_msg_one_param(e_Msg_Type msg_type, SOCKET t_socket, char *param_1);
+RX_msg* parse_message_params(char *message);
+
+
 /**
  * SendBuffer() uses a socket to send a buffer.
  * Accepts:

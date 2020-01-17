@@ -5,8 +5,73 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../shared/socket_shared.h"
 #include "SocketSendRecvTools.h"
 #define MAX_MSG_LEN_ZERO_PARAMS 29 //"SERVER_PLAYER_MOVE_REQUEST"(26) +":"(1) +"\n" +"\0"  
+
+e_Msg_Type identify_msg_type(char *msg_type) {
+	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_REQUEST")) {
+		return CLIENT_REQUEST;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_MAIN_MENU")) {
+		return CLIENT_MAIN_MENU;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_CPU")) {
+		return CLIENT_CPU;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_VERSUS")) {
+		return CLIENT_VERSUS;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_LEADERBOARD")) {
+		return CLIENT_LEADERBOARD;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_PLAYER_MOVE")) {
+		return CLIENT_PLAYER_MOVE;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_REPLY")) {
+		return CLIENT_REPLY;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_REFRESH")) {
+		return CLIENT_REFRESH;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_DISCONNECT")) {
+		return CLIENT_DISCONNECT;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "SERVER_MAIN_MENU")) {
+		return SERVER_MAIN_MENU;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "SERVER_APPROVED")) {
+		return SERVER_APPROVED;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "SERVER_DENIED")) {
+		return SERVER_DENIED;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "SERVER_INVITE")) {
+		return SERVER_INVITE;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "SERVER_PLAYER_MOVE_REQUEST")) {
+		return SERVER_PLAYER_MOVE_REQUEST;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "SERVER_GAME_RESULTS")) {
+		return SERVER_GAME_RESULTS;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "SERVER_GAME_OVER_MENU")) {
+		return SERVER_GAME_OVER_MENU;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "SERVER_OPPONENT_QUIT")) {
+		return SERVER_OPPONENT_QUIT;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "SERVER_NO_OPPONENTS")) {
+		return SERVER_NO_OPPONENTS;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "SERVER_LEADERBOARD")) {
+		return SERVER_LEADERBOARD;
+	}
+	if (STRINGS_ARE_EQUAL(msg_type, "SERVER_LEADERBOARD_MENU")) {
+		return SERVER_LEADERBOARD_MENU;
+	}
+	return ERR;
+}
 
 /*this function sends messages with zero params only*/
 TransferResult_t send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket) {
@@ -76,8 +141,8 @@ TransferResult_t send_msg_one_param(e_Msg_Type msg_type, SOCKET t_socket, char *
 	case SERVER_INVITE:
 		sprintf(sendbuf, "SERVER_INVITE:%s\n", param_1);
 		break;
-	case SERVER_OPONNET_QUIT:
-		sprintf(sendbuf, "SERVER_OPONNET_QUIT:%s\n", param_1);
+	case SERVER_OPPONENT_QUIT:
+		sprintf(sendbuf, "SERVER_OPPONENT_QUIT:%s\n", param_1);
 		break;
 	}
 	res = SendString(sendbuf, t_socket);
@@ -194,4 +259,81 @@ TransferResult_t ReceiveString(char** OutputStrPtr, SOCKET sd)
 	}
 
 	return RecvRes;
+}
+
+/*input: message as string. output: RX_msg struct, contains the original message divided to params*/
+RX_msg* parse_message_params(char *message) {
+	int i, curr_param_len, last_semicolon_ind = 0, arg_index = 1;
+	RX_msg *parsed_msg;
+	char msg_type[MAX_MSG_TYPE_LEN], *colon_ind;
+
+	parsed_msg = (RX_msg*)malloc(sizeof(RX_msg));
+	parsed_msg->arg_1 = NULL;
+	parsed_msg->arg_2 = NULL;
+	parsed_msg->arg_3 = NULL;
+	parsed_msg->arg_4 = NULL;
+
+	if (!parsed_msg) {
+		goto err_type;
+	}
+	colon_ind = strchr(message, ':');
+	curr_param_len = strlen(message) - strlen(colon_ind);
+	strncpy(msg_type, message, curr_param_len);
+	msg_type[curr_param_len] = '\0';					/* copied partial string, must finish it with \0 */
+	parsed_msg->msg_type = identify_msg_type(msg_type);
+
+	i = curr_param_len;
+	last_semicolon_ind = curr_param_len;
+	while (message[i] != '\n') {
+		if (message[i] == ';') {
+			curr_param_len = i - last_semicolon_ind;
+			last_semicolon_ind = i;
+			switch (arg_index) {
+			case 1:
+				parsed_msg->arg_1 = (char *)malloc(curr_param_len+1);
+				if (!parsed_msg->arg_1)
+					goto err_arg1;
+				strncpy(parsed_msg->arg_1, &message[i+1], curr_param_len);
+				parsed_msg->arg_1[curr_param_len] = '\0';
+				break;
+			case 2:
+				parsed_msg->arg_2 = (char *)malloc(curr_param_len + 1);
+				if (!parsed_msg->arg_2)
+					goto err_arg2;
+				strncpy(parsed_msg->arg_2, &message[i+1], curr_param_len);
+				parsed_msg->arg_2[curr_param_len] = '\0';
+				break;
+			case 3:
+				parsed_msg->arg_3 = (char *)malloc(curr_param_len + 1);
+				if (!parsed_msg->arg_3)
+					goto err_arg3;
+				strncpy(parsed_msg->arg_3, &message[i+1], curr_param_len);
+				parsed_msg->arg_3[curr_param_len] = '\0';
+				break;
+			case 4:
+				parsed_msg->arg_4 = (char *)malloc(curr_param_len + 1);
+				if (!parsed_msg->arg_4)
+					goto err_arg4;
+				strncpy(parsed_msg->arg_4, &message[i+1], curr_param_len);
+				parsed_msg->arg_4[curr_param_len] = '\0';
+				break;
+			}
+			arg_index++;
+		}
+		i++;
+	}
+	return parsed_msg;
+
+err_arg4:
+	free(parsed_msg->arg_3);
+err_arg3:
+	free(parsed_msg->arg_2);
+err_arg2:
+	free(parsed_msg->arg_1);
+err_arg1:
+	free(parsed_msg);
+err_type:
+	printf("Error allocating memory for RX_msg\n");
+	return NULL;
+
 }
