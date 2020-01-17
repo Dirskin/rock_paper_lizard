@@ -116,6 +116,10 @@ TransferResult_t send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket) {
 		break;
 	}
 	res = SendString(sendbuf, t_socket);
+	if (res == TRNS_FAILED) {
+		printf("Service socket error while writing, closing thread.\n");
+		return ERR_SOCKET_SEND;
+	}
 	return res;
 }
 
@@ -146,6 +150,29 @@ TransferResult_t send_msg_one_param(e_Msg_Type msg_type, SOCKET t_socket, char *
 		break;
 	}
 	res = SendString(sendbuf, t_socket);
+	return res;
+}
+
+/*this function sends messages with four parameters*/
+TransferResult_t send_msg_quad_params(e_Msg_Type msg_type, SOCKET t_socket, char *param_1, char *param_2, char *param_3, char *param_4) {
+	char *sendbuf;
+	TransferResult_t res;
+	sendbuf = (char *)malloc(MAX_MSG_LEN_ZERO_PARAMS + strlen(param_1) + strlen(param_2) + strlen(param_3) + strlen(param_4));
+	if (!sendbuf)
+		return ERR_MALLOC;
+
+	switch (msg_type) {
+	case SERVER_GAME_RESULTS:
+		sprintf(sendbuf, "SERVER_GAME_RESULTS:%s;%s;%s;%s\n", param_1, param_2, param_3, param_4);
+		break;
+	}
+
+	res = SendString(sendbuf, t_socket);
+
+	if (res == TRNS_FAILED) {
+		printf("Service socket error while writing, closing thread.\n");
+		return ERR_SOCKET_SEND;
+	}
 	return res;
 }
 

@@ -9,6 +9,8 @@
 /* defines */
 #define NUM_OF_WORKER_THREADS 2
 #define MAX_MSG_TYPE_LEN 27 /*SERVER_PLAYER_MOVE_REQUEST+\0*/
+#define MAX_USERNAME_LEN 20 /*given in the instructions*/
+#define MAX_MOVE_NAME_LEN 9 /*strlen(SCISSORS)*/
 /* ERR codes*/
 #define ERR -1
 #define ERR_MALLOC (-2)
@@ -16,6 +18,8 @@
 #define ERR_SOCKET_SEND (-12)
 #define ERR_SOCKET_TRANS (-13)
 #define ERR_SOCKET_DISCONNECT (-14)
+
+#define ERR_WRONG_MSG_RECEIVED (-21)
 
 
 

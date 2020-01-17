@@ -8,6 +8,7 @@
 
 TransferResult_t send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket);
 TransferResult_t send_msg_one_param(e_Msg_Type msg_type, SOCKET t_socket, char *param_1);
+TransferResult_t send_msg_quad_params(e_Msg_Type msg_type, SOCKET t_socket, char *param_1, char *param_2, char *param_3, char *param_4);
 RX_msg* parse_message_params(char *message);
 
 

@@ -4,13 +4,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
-#include <winsock2.h>
 #include "../shared/socket_shared.h"
 #include "../shared/SocketSendRecvTools.h"
 
 #define NUM_OF_WORKER_THREADS 2
 #include "thread_handle.h"
-#include "../shared/common.h"
+#include "gameplay.h"
 #include "../shared/socket_shared.h"
 #include "../shared/SocketSendRecvTools.h"
 
@@ -171,13 +170,12 @@ int get_response(RX_msg **rx_msg, SOCKET *t_socket) {
 //Service thread is the thread that opens for each successful client connection and "talks" to the client.
 static DWORD ClientThread(SOCKET *t_socket)
 {
-	char SendStr[SEND_STR_SIZE];
 	BOOL Done = FALSE;
 	int err;
 	RX_msg *rx_msg = NULL;
 	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED;;
 	TransferResult_t RecvRes;
-
+	e_Msg_Type prev_rx_msg;
 	while (!Done)
 	{
 		err = get_response(&rx_msg, t_socket);
@@ -186,18 +184,24 @@ static DWORD ClientThread(SOCKET *t_socket)
 			;
 		}
 
-		if (rx_msg != NULL) {
-			if (rx_msg->msg_type == CLIENT_REQUEST) {
-				SendRes = send_msg_zero_params(SERVER_APPROVED, *t_socket);
-				SendRes2 = send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
-			}
+		if (rx_msg->msg_type == CLIENT_REQUEST) {
+			prev_rx_msg = CLIENT_REQUEST;
+			SendRes = send_msg_zero_params(SERVER_APPROVED, *t_socket);
+			SendRes2 = send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
 		}
-		if (SendRes == TRNS_FAILED || SendRes2 == TRNS_FAILED)
-		{
+		if (SendRes == TRNS_FAILED || SendRes2 == TRNS_FAILED) {
 			printf("Service socket error while writing, closing thread.\n");
 			closesocket(*t_socket);
 			return ERR_SOCKET_SEND;
 		}
+
+		if (rx_msg->msg_type == CLIENT_CPU && prev_rx_msg == CLIENT_REQUEST) {
+			start_game_vs_cpu(t_socket);
+			/* Here suppose to send SERVER_GAME_OVER_MENU and allow another game to start (OR inside start_Game_vs_cpu)*/
+			/*Here need to add: MainMenu Func (Wait in main menu, decide whats next*/
+		}
+
+
 	}
 	printf("Conversation ended.\n");
 	closesocket(*t_socket);
