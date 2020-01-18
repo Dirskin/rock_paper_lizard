@@ -2,7 +2,7 @@
 #ifndef SOCKET_EXAMPLE_CLIENT_H
 #define SOCKET_EXAMPLE_CLIENT_H
 
-int MainClient(const char *server_ip_addr, int port);
+int MainClient(const char *server_ip_addr, int server_port, char *username);
 
 /* F = Flags, for flags*/
 #define F_SERVER_CONNECTION_FAILED	((int)(-1012))

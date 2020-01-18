@@ -311,8 +311,8 @@ RX_msg* parse_message_params(char *message) {
 
 	i = curr_param_len;
 	last_semicolon_ind = curr_param_len;
-	while (message[i] != '\n') {
-		if (message[i] == ';') {
+	while (message[i] != '\0') {
+		if (message[i] == ';' || message[i] == '\n') {
 			curr_param_len = i - last_semicolon_ind;
 			last_semicolon_ind = i;
 			switch (arg_index) {

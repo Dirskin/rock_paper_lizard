@@ -5,6 +5,7 @@
 #include <string.h>
 #include <winsock2.h>
 #include "clientsockethandle.h"
+#include "ClientGamePlay.h"
 #include "../shared/socket_shared.h"
 #include "../shared/SocketSendRecvTools.h"
 #include "../shared/common.h"
@@ -51,7 +52,6 @@ int failed_connection(const char *server_ip_addr, int port, int flag_type) {
 static DWORD RecvDataThread(RX_msg *rx_msg)
 {
 	TransferResult_t RecvRes;
-	int err;
 	int msg_type;
 	char *AcceptedStr = NULL;
 
@@ -199,6 +199,11 @@ static DWORD SendDataThread(Flow_param *flow_param)
 				msg_rcv = play_against_cpu(m_socket);
 				threads_are_alive = TRUE;
 				continue;
+			}
+
+			if (msg_rcv == SERVER_GAME_RESULTS) {
+				printf("I recieved the results woohooo\n");
+				//msg_rcv = game_play_results(m_socket, &rx_msg, flow_param->username);
 			}
 		}
 	}
