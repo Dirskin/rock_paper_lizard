@@ -21,7 +21,8 @@
 
 #define ERR_WRONG_MSG_RECEIVED (-21)
 
-
+/* server client defines*/
+#define CLIENT_QUITS 100
 
 /*enums*/
 typedef enum {

@@ -7,10 +7,11 @@
 #include "clientsockethandle.h"
 #include "../shared/socket_shared.h"
 #include "../shared/SocketSendRecvTools.h"
+#include "../shared/common.h"
 
 
 SOCKET m_socket;
-bool threads_are_alive = FALSE, expecting_user_input=false;
+expecting_user_input=false;
 
 
 int failed_connection(const char *server_ip_addr, int port, int flag_type) {
@@ -52,27 +53,22 @@ static DWORD RecvDataThread(RX_msg *rx_msg)
 	TransferResult_t RecvRes;
 	int err;
 	int msg_type;
+	char *AcceptedStr = NULL;
 
-	while (threads_are_alive)
-	{
-		char *AcceptedStr = NULL;
-		RecvRes = ReceiveString(&AcceptedStr, m_socket);
+	RecvRes = ReceiveString(&AcceptedStr, m_socket);
 
-		if (RecvRes == TRNS_FAILED) {
-			return (DWORD)F_SERVER_CONNECTION_LOST;
-		}
-		else if (RecvRes == TRNS_DISCONNECTED) {
-
-			return (DWORD)F_SERVER_CONNECTION_LOST;
-		}
-		else {
-			printf("%s\n", AcceptedStr);
-			rx_msg = parse_message_params(AcceptedStr);
-			printf("the message type is:%d\n", rx_msg->msg_type);
-			msg_type = rx_msg->msg_type;
-			return (DWORD)msg_type;
-			}
+	if (RecvRes == TRNS_FAILED) {
+		return (DWORD)F_SERVER_CONNECTION_LOST;
 	}
+	else if (RecvRes == TRNS_DISCONNECTED) {
+
+		return (DWORD)F_SERVER_CONNECTION_LOST;
+	}
+	else {
+		rx_msg = parse_message_params(AcceptedStr);
+		msg_type = rx_msg->msg_type;
+		return (DWORD)msg_type;
+		}
 
 	return (DWORD)0;
 }
@@ -97,9 +93,10 @@ static DWORD SendDataThread(Flow_param *flow_param)
 	DWORD wait_code;
 	RX_msg *rx_msg;
 	BOOL ret_val;
-	int msg_rcv = 0;
+	e_Msg_Type msg_rcv = 0, client_menu_select = 0;
 	char SendStr[256];
 	bool start_connection = true;
+	bool threads_are_alive = TRUE;
 	while (threads_are_alive)
 	{
 		/*Starting a new connection to the server, the only valid message is server_connected*/
@@ -107,6 +104,10 @@ static DWORD SendDataThread(Flow_param *flow_param)
 		{
 			strcpy(SendStr, flow_param->username);
 			SendRes = send_msg_one_param(CLIENT_REQUEST, m_socket, flow_param->username);
+			if (SendRes == TRNS_FAILED) {
+				printf("Socket error while trying to write data to socket\n");
+				return (DWORD)0x555;
+			}
 			/*passing the rx_msg in order to know which type of message we recieve from the server*/
 			hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RecvDataThread, &rx_msg, 0, NULL);
 
@@ -134,7 +135,6 @@ static DWORD SendDataThread(Flow_param *flow_param)
 				}
 				continue;
 			}
-
 		}
 		/*if resieved a server connection now waiting for server main menu*/
 		else {
@@ -150,54 +150,37 @@ static DWORD SendDataThread(Flow_param *flow_param)
 			if (msg_rcv < 0) {
 				msg_rcv = failed_connection(flow_param->ip, flow_param->port, msg_rcv);
 			}
+			ret_val = CloseHandle(hThread);
+			if (FALSE == ret_val)
+			{
+				printf("Error when closing thread: %d\n", GetLastError());
+				return ERR;                        //NEED TO BE CHANGED TO DEFINE
+			}
 			if (msg_rcv == SERVER_MAIN_MENU) {
-				//first closing the reading thread
-				ret_val = CloseHandle(hThread);
-				if (FALSE == ret_val)
-				{
-					printf("Error when closing thread: %d\n", GetLastError());
-					return ERR;                        //NEED TO BE CHANGED TO DEFINE
-				}
-				msg_rcv = ClientMainMenu();
-				if (msg_rcv == CLIENT_DISCONNECT)
+				//first closing the reading thread				
+				client_menu_select = ClientMainMenu();
+				printf("client_menu_select is %d\n", client_menu_select);
+				if (client_menu_select == CLIENT_DISCONNECT) {
+					threads_are_alive = FALSE;
 					return (DWORD)0;
-
+				}
+				threads_are_alive = TRUE;
+				continue; //waiting for response from the server
 			}
 			if (msg_rcv == SERVER_INVITE) //recieved a message and then waiting for another message
+				printf("waiting for the server reply\n");
 				continue;
-			
+
+			if (msg_rcv == SERVER_PLAYER_MOVE_REQUEST) {//recieved a massage and waiting for a replay
+				printf("Hi, I'm playing against someone\n");
+				msg_rcv = play_against_cpu(m_socket);
+				threads_are_alive = TRUE;
+				continue;
+			}
 		}
-
-		if (SendRes == TRNS_FAILED) {
-			printf("Socket error while trying to write data to socket\n");
-			return (DWORD)0x555;
-		}	
-
-		threads_are_alive = FALSE;
-		start_connection = false;
-		Sleep(10000);
 	}
-
+	Sleep(1000);
 	return (DWORD)0;
-}
-
-DWORD client_service_thread(Flow_param *flow_param) {
-	HANDLE hThread[2];
-	int err=0;
-	DWORD wait_code;
-	threads_are_alive = TRUE;
-	hThread[0] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)SendDataThread, flow_param, 0, NULL);
-	wait_code = WaitForSingleObject(hThread[0], INFINITE);
-	GetExitCodeThread(hThread[0], &err);
-	if (err < 0) {
-			err = failed_connection(flow_param->ip, flow_param->port, err);
-			threads_are_alive = FALSE;
-		}
-	//TerminateThread(hThread[0], 0x555);
-	//TerminateThread(hThread[1], 0x555);
-
-	CloseHandle(hThread[0]);
-	return 0;
 }
 
 
@@ -236,7 +219,7 @@ int MainClient(const char *server_ip_addr, int server_port, char *username) {
 		goto out;		/*Thats not an error: user chose to exit*/
 		}
 	printf("Connected to server on %s:%d\n", server_ip_addr, server_port);
-	hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)client_service_thread, &flow_param, 0, NULL);
+	hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)SendDataThread, &flow_param, 0, NULL);
 	wait_code = WaitForSingleObject(hThread, INFINITE);
 	GetExitCodeThread(hThread, &err);
 	CloseHandle(hThread);
