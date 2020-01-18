@@ -82,7 +82,31 @@ int ClientMainMenu(void) {
 	printf("Choose what to do next:\n");
 	printf("1. Play against another client\n");
 	printf("2. Play against the server\n");
-	printf("3. Quit\n");	scanf("%d\n", &decision);	while (not_valid_input) {		switch (decision) {		case 1:			SendRes = send_msg_zero_params(CLIENT_VERSUS, m_socket);			msg_sent = CLIENT_VERSUS;			not_valid_input = FALSE;			break;		case 2:			SendRes = send_msg_zero_params(CLIENT_CPU, m_socket);			msg_sent = CLIENT_CPU;			not_valid_input = FALSE;			break;		case 3:			SendRes = send_msg_zero_params(CLIENT_DISCONNECT, m_socket);			msg_sent = CLIENT_DISCONNECT;			not_valid_input = FALSE;			break;		default:			printf("please enter valid answer:");			scanf("%d\n", &decision);		}	}	return msg_sent;
+	printf("3. Quit\n");
+	scanf("%d", &decision);
+	while (not_valid_input) {
+		switch (decision) {
+		case 1:
+			SendRes = send_msg_zero_params(CLIENT_VERSUS, m_socket);
+			msg_sent = CLIENT_VERSUS;
+			not_valid_input = FALSE;
+			break;
+		case 2:
+			SendRes = send_msg_zero_params(CLIENT_CPU, m_socket);
+			msg_sent = CLIENT_CPU;
+			not_valid_input = FALSE;
+			break;
+		case 3:
+			SendRes = send_msg_zero_params(CLIENT_DISCONNECT, m_socket);
+			msg_sent = CLIENT_DISCONNECT;
+			not_valid_input = FALSE;
+			break;
+		default:
+			printf("please enter valid answer:");
+			scanf("%d\n", &decision);
+		}
+	}
+	return msg_sent;
 }
 
 //Sending data to the server
@@ -141,8 +165,7 @@ static DWORD SendDataThread(Flow_param *flow_param)
 			hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RecvDataThread, &rx_msg, 0, NULL);
 			/*waiting for 15 seconds for response, if the wait time is bigger then assuming the connection is lost*/
 			wait_code = WaitForSingleObject(hThread, INFINITE); //RESPONSE time is set to infinite sec NEED TO BE 15!
-			if (WAIT_OBJECT_0 != wait_code)
-			{
+			if (WAIT_OBJECT_0 != wait_code) {
 				printf("Waited for 15 seconds, server lost\n");
 				TerminateThread(hThread, 0x555);
 			}
@@ -151,8 +174,7 @@ static DWORD SendDataThread(Flow_param *flow_param)
 				msg_rcv = failed_connection(flow_param->ip, flow_param->port, msg_rcv);
 			}
 			ret_val = CloseHandle(hThread);
-			if (FALSE == ret_val)
-			{
+			if (FALSE == ret_val) {
 				printf("Error when closing thread: %d\n", GetLastError());
 				return ERR;                        //NEED TO BE CHANGED TO DEFINE
 			}
@@ -165,13 +187,14 @@ static DWORD SendDataThread(Flow_param *flow_param)
 					return (DWORD)0;
 				}
 				threads_are_alive = TRUE;
-				continue; //waiting for response from the server
+				continue;									 //waiting for response from the server
 			}
-			if (msg_rcv == SERVER_INVITE) //recieved a message and then waiting for another message
+			if (msg_rcv == SERVER_INVITE) {					 //recieved a message and then waiting for another message
 				printf("waiting for the server reply\n");
 				continue;
+			}
 
-			if (msg_rcv == SERVER_PLAYER_MOVE_REQUEST) {//recieved a massage and waiting for a replay
+			if (msg_rcv == SERVER_PLAYER_MOVE_REQUEST) {	//recieved a massage and waiting for a replay
 				printf("Hi, I'm playing against someone\n");
 				msg_rcv = play_against_cpu(m_socket);
 				threads_are_alive = TRUE;
