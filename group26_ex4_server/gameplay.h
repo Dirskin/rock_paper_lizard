@@ -6,11 +6,9 @@
 #include <winsock2.h>
 
 /* function declarations*/
-int start_game_vs_cpu(SOCKET *t_socket);
+int start_game_vs_cpu(SOCKET *t_socket, char *username_str);
 
 /* gameplay defines */
-#define CLIENT_MENU_OPTION_ENDGAME
-#define CLIENT_MENU_OPTION_
 
 
 #endif // GAME_PLAY

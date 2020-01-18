@@ -67,7 +67,7 @@ static DWORD RecvDataThread(RX_msg *rx_msg)
 	else {
 		rx_msg = parse_message_params(AcceptedStr);
 		msg_type = rx_msg->msg_type;
-		return (DWORD)msg_type;
+		return (DWORD)rx_msg;
 		}
 
 	return (DWORD)0;
@@ -115,12 +115,13 @@ static DWORD SendDataThread(Flow_param *flow_param)
 	TransferResult_t SendRes;
 	HANDLE hThread;
 	DWORD wait_code;
-	RX_msg *rx_msg;
 	BOOL ret_val;
 	e_Msg_Type msg_rcv = 0, client_menu_select = 0;
 	char SendStr[256];
 	bool start_connection = true;
 	bool threads_are_alive = TRUE;
+	RX_msg *rx_msg;
+
 	while (threads_are_alive)
 	{
 		/*Starting a new connection to the server, the only valid message is server_connected*/
@@ -143,12 +144,12 @@ static DWORD SendDataThread(Flow_param *flow_param)
 				TerminateThread(hThread, 0x555);
 			}
 
-			GetExitCodeThread(hThread, &msg_rcv);
-			if (msg_rcv < 0) {
-				msg_rcv = failed_connection(flow_param->ip, flow_param->port, msg_rcv);
+			GetExitCodeThread(hThread, &rx_msg);
+			if (rx_msg->msg_type < 0) {
+				rx_msg->msg_type = failed_connection(flow_param->ip, flow_param->port, rx_msg->msg_type);
 			}
 			//recieved server connected message 
-			if (msg_rcv == SERVER_APPROVED) {
+			if (rx_msg->msg_type == SERVER_APPROVED) {
 				threads_are_alive = TRUE;
 				start_connection = FALSE;
 				ret_val = CloseHandle(hThread);
@@ -169,16 +170,16 @@ static DWORD SendDataThread(Flow_param *flow_param)
 				printf("Waited for 15 seconds, server lost\n");
 				TerminateThread(hThread, 0x555);
 			}
-			GetExitCodeThread(hThread, &msg_rcv);
-			if (msg_rcv < 0) {
-				msg_rcv = failed_connection(flow_param->ip, flow_param->port, msg_rcv);
+			GetExitCodeThread(hThread, &rx_msg);
+			if (rx_msg->msg_type < 0) {
+				rx_msg->msg_type = failed_connection(flow_param->ip, flow_param->port, rx_msg->msg_type);
 			}
 			ret_val = CloseHandle(hThread);
 			if (FALSE == ret_val) {
 				printf("Error when closing thread: %d\n", GetLastError());
 				return ERR;                        //NEED TO BE CHANGED TO DEFINE
 			}
-			if (msg_rcv == SERVER_MAIN_MENU) {
+			if (rx_msg->msg_type == SERVER_MAIN_MENU) {
 				//first closing the reading thread				
 				client_menu_select = ClientMainMenu();
 				printf("client_menu_select is %d\n", client_menu_select);
@@ -189,21 +190,21 @@ static DWORD SendDataThread(Flow_param *flow_param)
 				threads_are_alive = TRUE;
 				continue;									 //waiting for response from the server
 			}
-			if (msg_rcv == SERVER_INVITE) {					 //recieved a message and then waiting for another message
+			if (rx_msg->msg_type == SERVER_INVITE) {					 //recieved a message and then waiting for another message
 				printf("waiting for the server reply\n");
 				continue;
 			}
 
-			if (msg_rcv == SERVER_PLAYER_MOVE_REQUEST) {	//recieved a massage and waiting for a replay
+			if (rx_msg->msg_type == SERVER_PLAYER_MOVE_REQUEST) {	//recieved a massage and waiting for a replay
 				printf("Hi, I'm playing against someone\n");
 				msg_rcv = play_against_cpu(m_socket);
 				threads_are_alive = TRUE;
 				continue;
 			}
 
-			if (msg_rcv == SERVER_GAME_RESULTS) {
+			if (rx_msg->msg_type == SERVER_GAME_RESULTS) {
 				printf("I recieved the results woohooo\n");
-				//msg_rcv = game_play_results(m_socket, &rx_msg, flow_param->username);
+				msg_rcv = game_play_results(m_socket, rx_msg, flow_param->username);
 			}
 		}
 	}

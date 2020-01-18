@@ -160,7 +160,6 @@ int get_response(RX_msg **rx_msg, SOCKET *t_socket) {
 	else {
 		printf("Got string : %s\n", AcceptedStr);
 		*rx_msg = parse_message_params(AcceptedStr);
-		
 		return 0;
 	}
 	free(AcceptedStr);
@@ -170,23 +169,26 @@ int get_response(RX_msg **rx_msg, SOCKET *t_socket) {
 //Service thread is the thread that opens for each successful client connection and "talks" to the client.
 static DWORD ClientThread(SOCKET *t_socket)
 {
-	BOOL Done = FALSE;
-	int err;
-	RX_msg *rx_msg = NULL;
-	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED;;
+	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED;
+	char username_str[MAX_USERNAME_LEN];
+	bool client_chose_cpu = true;
 	TransferResult_t RecvRes;
 	e_Msg_Type prev_rx_msg;
-	bool client_want_rematch = true;
+	RX_msg *rx_msg = NULL;
+	BOOL Done = FALSE;
+	int err = ERR;
+
 	while (!Done)
 	{
 		err = get_response(&rx_msg, t_socket);
 		if (err) {
-			//go to function with error code and handle it or something else 
-			;
+			printf("ERROR: Communication with player failed\n");
+			err = ERR;
+			goto out;
 		}
-
 		if (rx_msg->msg_type == CLIENT_REQUEST) {
 			prev_rx_msg = CLIENT_REQUEST;
+			strcpy(username_str, rx_msg->arg_1);
 			SendRes = send_msg_zero_params(SERVER_APPROVED, *t_socket);
 			SendRes2 = send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
 		}
@@ -195,22 +197,40 @@ static DWORD ClientThread(SOCKET *t_socket)
 			closesocket(*t_socket);
 			return ERR_SOCKET_SEND;
 		}
-
-		if (rx_msg->msg_type == CLIENT_CPU && prev_rx_msg == CLIENT_REQUEST) {
-			while (client_want_rematch) {
-				start_game_vs_cpu(t_socket);
-				//send_msg_zero_param(SERVER_GAME_OVER_MENU, t_socket);
-				//send: SERVER_GAME_OVER_MENU
-				//LISTEN to message, check if play again against computer, or go back to main menu
-				//if main menu, break current loop and go out, change mode to server_main_menu
-				/* Here suppose to send SERVER_GAME_OVER_MENU and allow another game to start (OR inside start_Game_vs_cpu)*/
-				/*Here need to add: MainMenu Func (Wait in main menu, decide whats next*/
-
+		if (rx_msg->msg_type == CLIENT_CPU) {
+			client_chose_cpu = true;
+			while (client_chose_cpu) {
+				client_chose_cpu = false;
+				err = start_game_vs_cpu(t_socket, username_str);
+				if (err == ERR) {
+					printf("Error while playing player vs CPU\n");
+					goto out;
+				}
+				send_msg_zero_params(SERVER_GAME_OVER_MENU, t_socket);
+				err = get_response(&rx_msg, t_socket);
+				if (err) {
+					printf("Error receiving respons from user\n");
+					err = ERR;
+				}
+				if (rx_msg->msg_type == CLIENT_REPLY) {
+					client_chose_cpu == true;
+				}
+				else {
+					client_chose_cpu = false;
+				}
 			}
+		}
+		if (rx_msg->msg_type == CLIENT_MAIN_MENU) {
+			send_msg_zero_params(SERVER_MAIN_MENU, t_socket);
+		}
+		if (rx_msg->msg_type == CLIENT_DISCONNECT) {
+			err = 0;
+			goto out;									/*closing client thread, waiting for new connections.*/
 		}
 
 	}
 	printf("Conversation ended.\n");
+out: 
 	closesocket(*t_socket);
-	return 0;
+	return err;
 }

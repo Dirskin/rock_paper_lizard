@@ -28,7 +28,7 @@ Game_Move generate_cpu_move() {
 
 int find_winner(Game_Move player1move, Game_Move player2move) {
 	if (player1move == player2move) { /* tie */
-		return 0;
+		return TIE;
 	}
 	/* Player 1 possible wins*/
 	if (player1move == ROCK && player2move == SCISSORS || player1move == ROCK && player2move == LIZARD) {
@@ -67,14 +67,12 @@ int find_winner(Game_Move player1move, Game_Move player2move) {
 
 
 
-TransferResult_t send_results_msg(SOCKET *t_socket, int winner, Game_Move cpu_move, char *player_move, char *username) {
+TransferResult_t send_results_msg(SOCKET *t_socket, int winner, Game_Move cpu_move, char *player_move, char *username_str) {
 	char server_name[MAX_USERNAME_LEN];
-	char username_str[MAX_USERNAME_LEN];
 	char cpu_move_str[MAX_MOVE_NAME_LEN];
 	TransferResult_t err;
 
 	strcpy(server_name, "Server");
-	strcpy(username_str, "Username");
 
 	/*enum to str:*/
 	switch (cpu_move) {
@@ -96,15 +94,18 @@ TransferResult_t send_results_msg(SOCKET *t_socket, int winner, Game_Move cpu_mo
 	}
 	/* Sending By correct argument order*/
 	if (winner == SERVER_WON) {
-		err = send_msg_quad_params(SERVER_GAME_RESULTS, *t_socket, server_name, cpu_move_str, username_str, player_move);
+		err = send_msg_quad_params(SERVER_GAME_RESULTS, *t_socket, server_name, cpu_move_str, player_move, server_name);
 	}
-	else {
-		err = send_msg_quad_params(SERVER_GAME_RESULTS, *t_socket, username_str, player_move, server_name, cpu_move_str);
+	else if(winner == PLAYER1_WON) {
+		err = send_msg_quad_params(SERVER_GAME_RESULTS, *t_socket, server_name, cpu_move_str, player_move, username_str);
+	}
+	else if (winner == TIE) {
+		err = send_msg_quad_params(SERVER_GAME_RESULTS, *t_socket, server_name, cpu_move_str, player_move, "TIE");
 	}
 	return err;
 }
 
-int start_game_vs_cpu(SOCKET *t_socket) {
+int start_game_vs_cpu(SOCKET *t_socket, char *username_str) {
 	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED;;
 	TransferResult_t RecvRes;
 	e_Msg_Type prev_rx_msg;
@@ -117,14 +118,19 @@ int start_game_vs_cpu(SOCKET *t_socket) {
 	if (SendRes == TRNS_FAILED) return ERR_SOCKET_SEND;
 	err = get_response(&rx_msg, t_socket);
 	if (rx_msg->msg_type != CLIENT_PLAYER_MOVE) return ERR_WRONG_MSG_RECEIVED;
-	cpu_move = generate_cpu_move();
-	if (err) {
-		//go to function with error code and handle it or something else 
-		;
+	if (err < 0) {
+		printf("Error receiving message while playing CPU vs player\n");
+		return ERR;
 	}
-	winner = find_winner(cpu_move, identify_game_move(rx_msg->arg_1)); /* converting move(string) to GameMove eNum, then comparing */
-	winner = winner == 1 ? SERVER_WON : PLAYER1_WON; /*playing against CPU, CPU winner code defined 0*/
-	RecvRes = send_results_msg(t_socket, winner, cpu_move, rx_msg->arg_1, NULL);
+	cpu_move = generate_cpu_move();
+	winner = find_winner(cpu_move, identify_game_move(rx_msg->arg_1));			/* converting move(string) to GameMove eNum, then comparing */
+	if (winner == TIE) {
+		RecvRes = send_results_msg(t_socket, winner, cpu_move, rx_msg->arg_1, username_str);
+	}
+	else {
+		winner = winner == 1 ? SERVER_WON : PLAYER1_WON;						 /*playing against CPU, CPU winner code defined 1*/
+		RecvRes = send_results_msg(t_socket, winner, cpu_move, rx_msg->arg_1, username_str);
+	}
 	if (RecvRes != TRNS_SUCCEEDED) {
 		return ERR_SOCKET_SEND;
 	}

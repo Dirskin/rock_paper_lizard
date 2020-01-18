@@ -65,7 +65,7 @@ int play_against_cpu(SOCKET m_socket) {
 	return move;
 }
 
-int game_play_results(SOCKET m_socket, RX_msg *rx_msg,char *username) {
+int game_play_results(SOCKET m_socket, RX_msg *rx_msg, char *username) {
 	char player_move[MAX_MOVE_NAME_LEN], opponent_move[MAX_MOVE_NAME_LEN];
 	char winner_name[MAX_USERNAME_LEN], opponent_name[MAX_USERNAME_LEN];
 
