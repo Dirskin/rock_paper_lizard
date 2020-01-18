@@ -65,24 +65,7 @@ int find_winner(Game_Move player1move, Game_Move player2move) {
 	return ERR;
 }
 
-Game_Move identify_game_move(char *game_move) {
-	if (STRINGS_ARE_EQUAL(game_move, "ROCK")) {
-		return ROCK;
-	}
-	if (STRINGS_ARE_EQUAL(game_move, "PAPER")) {
-		return PAPER;
-	}
-	if (STRINGS_ARE_EQUAL(game_move, "SCISSORS")) {
-		return SCISSORS;
-	}
-	if (STRINGS_ARE_EQUAL(game_move, "LIZARD")) {
-		return LIZARD;
-	}
-	if (STRINGS_ARE_EQUAL(game_move, "SPOCK")) {
-		return SPOCK;
-	}
-	return ERR;
-}
+
 
 TransferResult_t send_results_msg(SOCKET *t_socket, int winner, Game_Move cpu_move, char *player_move, char *username) {
 	char server_name[MAX_USERNAME_LEN];

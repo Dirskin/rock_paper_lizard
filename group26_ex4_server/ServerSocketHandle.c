@@ -176,6 +176,7 @@ static DWORD ClientThread(SOCKET *t_socket)
 	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED;;
 	TransferResult_t RecvRes;
 	e_Msg_Type prev_rx_msg;
+	bool client_want_rematch = true;
 	while (!Done)
 	{
 		err = get_response(&rx_msg, t_socket);
@@ -196,11 +197,17 @@ static DWORD ClientThread(SOCKET *t_socket)
 		}
 
 		if (rx_msg->msg_type == CLIENT_CPU && prev_rx_msg == CLIENT_REQUEST) {
-			start_game_vs_cpu(t_socket);
-			/* Here suppose to send SERVER_GAME_OVER_MENU and allow another game to start (OR inside start_Game_vs_cpu)*/
-			/*Here need to add: MainMenu Func (Wait in main menu, decide whats next*/
-		}
+			while (client_want_rematch) {
+				start_game_vs_cpu(t_socket);
+				//send_msg_zero_param(SERVER_GAME_OVER_MENU, t_socket);
+				//send: SERVER_GAME_OVER_MENU
+				//LISTEN to message, check if play again against computer, or go back to main menu
+				//if main menu, break current loop and go out, change mode to server_main_menu
+				/* Here suppose to send SERVER_GAME_OVER_MENU and allow another game to start (OR inside start_Game_vs_cpu)*/
+				/*Here need to add: MainMenu Func (Wait in main menu, decide whats next*/
 
+			}
+		}
 
 	}
 	printf("Conversation ended.\n");

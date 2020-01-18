@@ -18,5 +18,8 @@ typedef enum {
 } Game_Move;
 
 
+/*functions*/
+Game_Move identify_game_move(char *game_move);
+
 #endif // !GAMEPLAY_COMMON
 
