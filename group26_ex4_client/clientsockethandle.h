@@ -9,5 +9,9 @@ int MainClient(const char *server_ip_addr, int port);
 #define F_SERVER_CONNECTION_LOST	((int)(-1013))
 #define F_SERVER_DENIED_CONNECTION	((int)(-1014))
 
+#define RESPONSE_MAX_WAIT_TIME 5000
+
+
+
 
 #endif // SOCKET_EXAMPLE_CLIENT_H
