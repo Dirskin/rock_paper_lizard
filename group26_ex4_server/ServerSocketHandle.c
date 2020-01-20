@@ -202,7 +202,7 @@ static DWORD ClientThread(SOCKET *t_socket)
 			client_chose_cpu = true;
 			while (client_chose_cpu) {
 				client_chose_cpu = false;
-				err = start_game_vs_cpu(*t_socket, username_str);
+				err = start_game_vs_cpu(t_socket, username_str);
 				if (err == ERR) {
 					printf("Error while playing player vs CPU\n");
 					goto out;
