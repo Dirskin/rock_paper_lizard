@@ -213,8 +213,8 @@ static DWORD ClientThread(SOCKET *t_socket)
 					printf("Error receiving respons from user\n");
 					err = ERR;
 				}
-				if (rx_msg->msg_type == CLIENT_REPLY) {
-					client_chose_cpu == true;
+				if (rx_msg->msg_type == CLIENT_REPLAY) {
+					client_chose_cpu = true;
 				}
 				else {
 					client_chose_cpu = false;
@@ -225,9 +225,9 @@ static DWORD ClientThread(SOCKET *t_socket)
 			client_chose_versus = true;
 			while (client_chose_versus) {   /*-----------------------------*/
 				client_chose_cpu = false;
-				err = start_game_vs_cpu(t_socket, username_str);
+				err = start_game_vs_player(t_socket, username_str);
 				if (err == ERR) {
-					printf("Error while playing player vs CPU\n");
+					printf("Error while playing player vs another player\n");
 					goto out;
 				}
 				send_msg_zero_params(SERVER_GAME_OVER_MENU, t_socket);
@@ -236,7 +236,8 @@ static DWORD ClientThread(SOCKET *t_socket)
 					printf("Error receiving respons from user\n");
 					err = ERR;
 				}
-				if (rx_msg->msg_type == CLIENT_REPLY) {
+				/* --------------- need to fix below, to check if the opponent wants to play as well --------------*/
+				if (rx_msg->msg_type == CLIENT_REPLAY) {
 					client_chose_cpu == true;
 				}
 				else {

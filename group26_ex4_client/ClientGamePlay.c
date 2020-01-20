@@ -96,9 +96,9 @@ int ClientGameOverMenu(SOCKET m_socket) {
 	scanf("%d", &game_over_decision);
 	while (not_valid_input) {
 		if (game_over_decision == 1) {
-			SendRes = send_msg_zero_params(CLIENT_REPLY, m_socket);
+			SendRes = send_msg_zero_params(CLIENT_REPLAY, m_socket);
 			not_valid_input = 0;
-			game_over_play = CLIENT_REPLY;
+			game_over_play = CLIENT_REPLAY;
 		}
 
 		else if (game_over_decision == 2) {

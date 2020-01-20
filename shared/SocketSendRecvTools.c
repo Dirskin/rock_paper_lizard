@@ -28,8 +28,8 @@ e_Msg_Type identify_msg_type(char *msg_type) {
 	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_PLAYER_MOVE")) {
 		return CLIENT_PLAYER_MOVE;
 	}
-	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_REPLY")) {
-		return CLIENT_REPLY;
+	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_REPLAY")) {
+		return CLIENT_REPLAY;
 	}
 	if (STRINGS_ARE_EQUAL(msg_type, "CLIENT_REFRESH")) {
 		return CLIENT_REFRESH;
@@ -108,8 +108,8 @@ TransferResult_t send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket) {
 	case CLIENT_LEADERBOARD:
 		strcpy(sendbuf, "CLIENT_LEADERBOARD:\n");
 		break;
-	case CLIENT_REPLY:
-		strcpy(sendbuf, "CLIENT_REPLY:\n");
+	case CLIENT_REPLAY:
+		strcpy(sendbuf, "CLIENT_REPLAY:\n");
 		break;
 	case CLIENT_REFRESH:
 		strcpy(sendbuf, "CLIENT_REFRESH:\n");
