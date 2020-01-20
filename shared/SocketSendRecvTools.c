@@ -314,37 +314,37 @@ RX_msg* parse_message_params(char *message) {
 	while (message[i] != '\0') {
 		if (message[i] == ';' || message[i] == '\n') {
 			curr_param_len = i - last_semicolon_ind;
-			last_semicolon_ind = i;
 			switch (arg_index) {
 			case 1:
 				parsed_msg->arg_1 = (char *)malloc(curr_param_len+1);
 				if (!parsed_msg->arg_1)
 					goto err_arg1;
-				strncpy(parsed_msg->arg_1, &message[i+1], curr_param_len);
-				parsed_msg->arg_1[curr_param_len] = '\0';
+				strncpy(parsed_msg->arg_1, &message[last_semicolon_ind +1], curr_param_len-1);
+				parsed_msg->arg_1[curr_param_len-1] = '\0';
 				break;
 			case 2:
 				parsed_msg->arg_2 = (char *)malloc(curr_param_len + 1);
 				if (!parsed_msg->arg_2)
 					goto err_arg2;
-				strncpy(parsed_msg->arg_2, &message[i+1], curr_param_len);
-				parsed_msg->arg_2[curr_param_len] = '\0';
+				strncpy(parsed_msg->arg_2, &message[last_semicolon_ind +1], curr_param_len-1);
+				parsed_msg->arg_2[curr_param_len-1] = '\0';
 				break;
 			case 3:
 				parsed_msg->arg_3 = (char *)malloc(curr_param_len + 1);
 				if (!parsed_msg->arg_3)
 					goto err_arg3;
-				strncpy(parsed_msg->arg_3, &message[i+1], curr_param_len);
-				parsed_msg->arg_3[curr_param_len] = '\0';
+				strncpy(parsed_msg->arg_3, &message[last_semicolon_ind+1], curr_param_len-1);
+				parsed_msg->arg_3[curr_param_len-1] = '\0';
 				break;
 			case 4:
 				parsed_msg->arg_4 = (char *)malloc(curr_param_len + 1);
 				if (!parsed_msg->arg_4)
 					goto err_arg4;
-				strncpy(parsed_msg->arg_4, &message[i+1], curr_param_len);
-				parsed_msg->arg_4[curr_param_len] = '\0';
+				strncpy(parsed_msg->arg_4, &message[last_semicolon_ind +1], curr_param_len-1);
+				parsed_msg->arg_4[curr_param_len-1] = '\0';
 				break;
 			}
+			last_semicolon_ind = i;
 			arg_index++;
 		}
 		i++;
