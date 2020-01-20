@@ -171,6 +171,7 @@ static DWORD ClientThread(SOCKET *t_socket)
 {
 	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED;
 	char username_str[MAX_USERNAME_LEN];
+	bool client_chose_versus = true;
 	bool client_chose_cpu = true;
 	TransferResult_t RecvRes;
 	e_Msg_Type prev_rx_msg;
@@ -200,6 +201,29 @@ static DWORD ClientThread(SOCKET *t_socket)
 		if (rx_msg->msg_type == CLIENT_CPU) {
 			client_chose_cpu = true;
 			while (client_chose_cpu) {
+				client_chose_cpu = false;
+				err = start_game_vs_cpu(*t_socket, username_str);
+				if (err == ERR) {
+					printf("Error while playing player vs CPU\n");
+					goto out;
+				}
+				send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
+				err = get_response(&rx_msg, t_socket);
+				if (err) {
+					printf("Error receiving respons from user\n");
+					err = ERR;
+				}
+				if (rx_msg->msg_type == CLIENT_REPLY) {
+					client_chose_cpu == true;
+				}
+				else {
+					client_chose_cpu = false;
+				}
+			}
+		}
+		if (rx_msg->msg_type == CLIENT_VERSUS) {
+			client_chose_versus = true;
+			while (client_chose_versus) {   /*-----------------------------*/
 				client_chose_cpu = false;
 				err = start_game_vs_cpu(t_socket, username_str);
 				if (err == ERR) {
