@@ -33,10 +33,11 @@ int failed_connection(const char *server_ip_addr, int port, int flag_type) {
 	while (1) {
 		scanf("%d", &decision);
 		if (decision == 1) { //chooses to try to reconnect
-			printf("thanks for choosing 1\n");
+			printf("thanks for choosing to reconnect\n");
 			return TRY_TO_RECONNECT;
 		}
 		else if (decision == 2) { //chooses to exit
+			printf("thanks for choosing to exit, bye bye\n");
 			return EXIT_CONNECTION;
 		}
 		else {
@@ -52,21 +53,22 @@ int failed_connection(const char *server_ip_addr, int port, int flag_type) {
 static DWORD RecvDataThread(RX_msg *rx_msg)
 {
 	TransferResult_t RecvRes;
-	int msg_type;
+	e_Msg_Type msg_type;
 	char *AcceptedStr = NULL;
 
 	RecvRes = ReceiveString(&AcceptedStr, m_socket);
 
-	if (RecvRes == TRNS_FAILED) {
-		return (DWORD)F_SERVER_CONNECTION_LOST;
+	if (RecvRes == TRNS_FAILED || RecvRes == TRNS_DISCONNECTED) {
+		rx_msg = (RX_msg*)malloc(sizeof(RX_msg));
+		if (!rx_msg) {
+			free(rx_msg);
+		}
+		rx_msg->msg_type = ERR_CONNECTION_LOST;
+		return (DWORD)rx_msg;
 	}
-	else if (RecvRes == TRNS_DISCONNECTED) {
 
-		return (DWORD)F_SERVER_CONNECTION_LOST;
-	}
 	else {
 		rx_msg = parse_message_params(AcceptedStr);
-		msg_type = rx_msg->msg_type;
 		return (DWORD)rx_msg;
 		}
 
@@ -88,8 +90,14 @@ int CreateNewConnectionServer(Flow_param *flow_param) {
 		strcpy(SendStr, flow_param->username);
 		SendRes = send_msg_one_param(CLIENT_REQUEST, m_socket, flow_param->username);
 		if (SendRes == TRNS_FAILED) {
-			printf("Socket error while trying to write data to socket\n");
-			return ERR_SOCKET;
+			client_move = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_FAILED);
+			if (client_move == TRY_TO_RECONNECT) {
+				connecting = true;
+				continue;
+			}
+			else {
+				return EXIT_CONNECTION;
+			}
 		}
 		/*passing the rx_msg in order to know which type of message we recieve from the server*/
 		hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RecvDataThread, &rx_msg, 0, NULL);
@@ -109,8 +117,8 @@ int CreateNewConnectionServer(Flow_param *flow_param) {
 			printf("Error when closing thread: %d\n", GetLastError());
 			return ERR_CLOSING_THREAD;                        //NEED TO BE CHANGED TO DEFINE
 		}
-		if (rx_msg->msg_type < 0) {
-			client_move = failed_connection(flow_param->ip, flow_param->port, rx_msg->msg_type);
+		if (rx_msg->msg_type == ERR_CONNECTION_LOST) {
+			client_move = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
 			if (client_move == TRY_TO_RECONNECT) {
 				connecting = true;
 				continue;
@@ -134,11 +142,12 @@ static DWORD SendDataThread(Flow_param *flow_param)
 	HANDLE hThread;
 	DWORD wait_code;
 	BOOL ret_val;
-	e_Msg_Type msg_rcv = 0, client_menu_select = 0;
+	e_Msg_Type msg_rcv = 0;
+	int client_menu_select = 0;
 	char SendStr[256];
 	bool start_connection = true;
 	bool threads_are_alive = TRUE;
-	RX_msg *rx_msg;
+	RX_msg *rx_msg = NULL;
 
 	while (threads_are_alive)
 	{
@@ -151,60 +160,80 @@ static DWORD SendDataThread(Flow_param *flow_param)
 		}
 		/*if resieved a server connection now waiting for server main menu*/
 		else {
+			/*Reading from server thread*/
 			hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RecvDataThread, &rx_msg, 0, NULL);
 			wait_code = WaitForSingleObject(hThread, INFINITE); //RESPONSE time is set to infinite sec NEED TO BE 15!
 			if (WAIT_OBJECT_0 != wait_code) {
 				printf("Waited for 15 seconds, server lost\n");
 				TerminateThread(hThread, 0x555);
 			}
+			/*Getting the command from the thread*/
 			GetExitCodeThread(hThread, &rx_msg);
-			if (rx_msg->msg_type < 0) {
-				rx_msg->msg_type = failed_connection(flow_param->ip, flow_param->port, rx_msg->msg_type);
-			}
 			ret_val = CloseHandle(hThread);
 			if (FALSE == ret_val) {
 				printf("Error when closing thread: %d\n", GetLastError());
-				return ERR;                        //NEED TO BE CHANGED TO DEFINE
+				free(rx_msg);
+				return ERR;                        
 			}
-			if (rx_msg->msg_type == SERVER_MAIN_MENU) {
-				//first closing the reading thread				
+			/*Connection from the server is gone*/
+			if (rx_msg->msg_type == ERR_CONNECTION_LOST) {
+				client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
+				if (client_menu_select == TRY_TO_RECONNECT) {
+					start_connection = CreateNewConnectionServer(flow_param);			
+				}
+				else {
+					threads_are_alive = FALSE;
+				}
+			}
+
+			if (rx_msg->msg_type == SERVER_MAIN_MENU) {			
 				client_menu_select = ClientMainMenu(m_socket);
 				printf("client_menu_select is %d\n", client_menu_select);
 				if (client_menu_select == CLIENT_DISCONNECT) {
 					threads_are_alive = FALSE;
-					return (DWORD)0;
 				}
-				threads_are_alive = TRUE;
-				continue;									 //waiting for response from the server
+				else {
+					threads_are_alive = TRUE;
+					continue;
+				}								
 			}
-			if (rx_msg->msg_type == SERVER_INVITE) {					 //recieved a message and then waiting for another message
-				printf("waiting for the server reply\n");
+			if (rx_msg->msg_type == SERVER_INVITE) {					 
+				threads_are_alive = TRUE;
 				continue;
 			}
-
-			if (rx_msg->msg_type == SERVER_PLAYER_MOVE_REQUEST) {	//recieved a massage and waiting for a replay
-				printf("Hi, I'm playing against someone\n");
+			if (rx_msg->msg_type == SERVER_PLAYER_MOVE_REQUEST) {	
 				msg_rcv = play_against_cpu(m_socket);
 				threads_are_alive = TRUE;
 				continue;
 			}
 
 			if (rx_msg->msg_type == SERVER_GAME_RESULTS) {
-				printf("I recieved the results woohooo\n");
 				msg_rcv = game_play_results(m_socket, rx_msg, flow_param->username);
 				threads_are_alive = TRUE;
 				continue;
 			}
 
 			if (rx_msg->msg_type == SERVER_GAME_OVER_MENU) {
-				printf("I recieved game over menu\n");
 				client_menu_select = ClientGameOverMenu(m_socket);
 				threads_are_alive = TRUE;
 				continue;
 			}
 
+			if (rx_msg->msg_type == SERVER_OPPONENT_QUIT || rx_msg->msg_type == SERVER_NO_OPPONENTS) {
+				client_menu_select = ClientMainMenu(m_socket);
+				printf("client_menu_select is %d\n", client_menu_select);
+				if (client_menu_select == CLIENT_DISCONNECT) {
+					threads_are_alive = FALSE;
+				}
+				else {
+					threads_are_alive = TRUE;
+					continue;
+				}
+			}
+			threads_are_alive = FALSE;
 		}
 	}
+	free(rx_msg);
 	Sleep(1000);
 	return (DWORD)0;
 }
