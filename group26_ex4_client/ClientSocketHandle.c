@@ -164,7 +164,6 @@ static DWORD SendDataThread(Flow_param *flow_param)
 		/*if resieved a server connection now waiting for server main menu*/
 		else {
 			hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RecvDataThread, &rx_msg, 0, NULL);
-			/*waiting for 15 seconds for response, if the wait time is bigger then assuming the connection is lost*/
 			wait_code = WaitForSingleObject(hThread, INFINITE); //RESPONSE time is set to infinite sec NEED TO BE 15!
 			if (WAIT_OBJECT_0 != wait_code) {
 				printf("Waited for 15 seconds, server lost\n");
@@ -205,7 +204,17 @@ static DWORD SendDataThread(Flow_param *flow_param)
 			if (rx_msg->msg_type == SERVER_GAME_RESULTS) {
 				printf("I recieved the results woohooo\n");
 				msg_rcv = game_play_results(m_socket, rx_msg, flow_param->username);
+				threads_are_alive = TRUE;
+				continue;
 			}
+
+			if (rx_msg->msg_type == SERVER_GAME_OVER_MENU) {
+				printf("I recieved game over menu\n");
+				client_menu_select = ClientGameOverMenu(m_socket);
+				threads_are_alive = TRUE;
+				continue;
+			}
+
 		}
 	}
 	Sleep(1000);

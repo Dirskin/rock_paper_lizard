@@ -33,9 +33,6 @@ int play_against_cpu(SOCKET m_socket) {
 		scanf("%s", decision);
 		strupper(decision, strlen(decision));
 		printf("your decision is %s\n", decision);
-		if (strcmp("ROCK", decision) == 0) {
-			move = ROCK;
-		}
 		move = identify_game_move(decision);
 		if (move == ERR) {
 			printf("please enter a valid move:\n");
@@ -78,12 +75,42 @@ int game_play_results(SOCKET m_socket, RX_msg *rx_msg, char *username) {
 	printf("%s played:%s\n", opponent_name, opponent_move);
 	if (strcmp(winner_name, "TIE")) {
 		if (strcmp(winner_name, opponent_name)) {
-			printf("%s won!", username);
+			printf("%s won!\n", username);
 		}
 		else {
-			printf("%s won!", opponent_name);
+			printf("%s won!\n", opponent_name);
 		}
 	}
 
 	return 0;
+}
+
+int ClientGameOverMenu(SOCKET m_socket) {
+	int game_over_decision;
+	int not_valid_input = 1;
+	int game_over_play;
+	TransferResult_t SendRes = TRNS_SUCCEEDED;
+	printf("Choose what to do next:\n");
+	printf("1. Play again\n");
+	printf("2. Return to the main menu\n");
+	scanf("%d", &game_over_decision);
+	while (not_valid_input) {
+		if (game_over_decision == 1) {
+			SendRes = send_msg_zero_params(CLIENT_REPLY, m_socket);
+			not_valid_input = 0;
+			game_over_play = CLIENT_REPLY;
+		}
+
+		else if (game_over_decision == 2) {
+			SendRes = send_msg_zero_params(CLIENT_MAIN_MENU, m_socket);
+			not_valid_input = 0;
+			game_over_play = CLIENT_MAIN_MENU;
+		}
+		else {
+			printf("enter a valid input:\n");
+			scanf("%d", &game_over_decision);
+		}
+	}
+	return game_over_play;
+
 }
