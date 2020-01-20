@@ -246,7 +246,7 @@ static DWORD ClientThread(SOCKET *t_socket)
 			}
 		}
 		if (rx_msg->msg_type == CLIENT_MAIN_MENU) {
-			send_msg_zero_params(SERVER_MAIN_MENU, t_socket);
+			send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
 		}
 		if (rx_msg->msg_type == CLIENT_DISCONNECT) {
 			err = 0;
