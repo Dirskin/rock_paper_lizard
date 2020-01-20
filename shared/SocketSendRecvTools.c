@@ -93,6 +93,9 @@ TransferResult_t send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket) {
 	case SERVER_LEADERBOARD_MENU:
 		strcpy(sendbuf, "SERVER_LEADERBOARD_MENU:\n");
 		break;
+	case SERVER_GAME_OVER_MENU:
+		strcpy(sendbuf, "SERVER_GAME_OVER_MENU:\n");
+		break;
 	case CLIENT_MAIN_MENU:
 		strcpy(sendbuf, "CLIENT_MAIN_MENU:\n");
 		break;
