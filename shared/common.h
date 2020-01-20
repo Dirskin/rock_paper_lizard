@@ -18,12 +18,16 @@
 #define ERR_SOCKET_SEND (-12)
 #define ERR_SOCKET_TRANS (-13)
 #define ERR_SOCKET_DISCONNECT (-14)
-
+#define ERR_THREAD_WAIT_TIME (-15)
+#define ERR_CLOSING_THREAD (-16)
 #define ERR_WRONG_MSG_RECEIVED (-21)
+
+#define TRY_TO_RECONNECT 333
+#define EXIT_CONNECTION 334
 
 /* server client defines*/
 #define CLIENT_QUITS 100
-
+#define APPROVED_BY_SERVER 110
 /*enums*/
 typedef enum {
 	CLIENT_REQUEST, CLIENT_MAIN_MENU, CLIENT_CPU, CLIENT_VERSUS,

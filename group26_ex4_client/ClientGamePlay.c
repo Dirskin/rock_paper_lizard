@@ -23,6 +23,45 @@ void strupper(char *str,int len) {
 	}
 }
 
+//printing main menu to the client
+int ClientMainMenu(SOCKET m_socket) {
+	char decision[MAX_MSG_TYPE_LEN];
+	int msg_sent = 0;
+	int client_move = 0;
+	bool not_valid_input = TRUE;
+	TransferResult_t SendRes = TRNS_SUCCEEDED;
+	printf("Choose what to do next:\n");
+	printf("1. Play against another client\n");
+	printf("2. Play against the server\n");
+	printf("3. Quit\n");
+	scanf("%s", decision);
+	while (not_valid_input) {
+		client_move = atoi(decision);
+		switch (client_move) {
+		case 1:
+			SendRes = send_msg_zero_params(CLIENT_VERSUS, m_socket);
+			msg_sent = CLIENT_VERSUS;
+			not_valid_input = FALSE;
+			break;
+		case 2:
+			SendRes = send_msg_zero_params(CLIENT_CPU, m_socket);
+			msg_sent = CLIENT_CPU;
+			not_valid_input = FALSE;
+			break;
+		case 3:
+			SendRes = send_msg_zero_params(CLIENT_DISCONNECT, m_socket);
+			msg_sent = CLIENT_DISCONNECT;
+			not_valid_input = FALSE;
+			break;
+		default:
+			printf("please enter valid answer:");
+			scanf("%s", decision);
+		}
+	}
+	return msg_sent;
+}
+
+
 int play_against_cpu(SOCKET m_socket) {
 	char decision[MAX_MOVE_NAME_LEN+10];
 	Game_Move move = ERR;
