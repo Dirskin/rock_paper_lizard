@@ -188,7 +188,16 @@ static DWORD SendDataThread(Flow_param *flow_param)
 
 			if (rx_msg->msg_type == SERVER_MAIN_MENU) {			
 				client_menu_select = ClientMainMenu(m_socket);
-				printf("client_menu_select is %d\n", client_menu_select);
+
+				if (client_menu_select == EXIT_CONNECTION) {
+					client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
+					if (client_menu_select == TRY_TO_RECONNECT) {
+						continue;
+					}
+					else {
+						return EXIT_CONNECTION;
+					}
+				}
 				if (client_menu_select == CLIENT_DISCONNECT) {
 					threads_are_alive = FALSE;
 				}
@@ -203,6 +212,15 @@ static DWORD SendDataThread(Flow_param *flow_param)
 			}
 			if (rx_msg->msg_type == SERVER_PLAYER_MOVE_REQUEST) {	
 				msg_rcv = play_against_cpu(m_socket);
+				if (client_menu_select == EXIT_CONNECTION) {
+					client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
+					if (client_menu_select == TRY_TO_RECONNECT) {
+						continue;
+					}
+					else {
+						return EXIT_CONNECTION;
+					}
+				}
 				threads_are_alive = TRUE;
 				continue;
 			}
@@ -215,13 +233,30 @@ static DWORD SendDataThread(Flow_param *flow_param)
 
 			if (rx_msg->msg_type == SERVER_GAME_OVER_MENU) {
 				client_menu_select = ClientGameOverMenu(m_socket);
+				if (client_menu_select == EXIT_CONNECTION) {
+					client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
+					if (client_menu_select == TRY_TO_RECONNECT) {
+						continue;
+					}
+					else {
+						return EXIT_CONNECTION;
+					}
+				}
 				threads_are_alive = TRUE;
 				continue;
 			}
 
 			if (rx_msg->msg_type == SERVER_OPPONENT_QUIT || rx_msg->msg_type == SERVER_NO_OPPONENTS) {
 				client_menu_select = ClientMainMenu(m_socket);
-				printf("client_menu_select is %d\n", client_menu_select);
+				if (client_menu_select == EXIT_CONNECTION) {
+					client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
+					if (client_menu_select == TRY_TO_RECONNECT) {
+						continue;
+					}
+					else {
+						return EXIT_CONNECTION;
+					}
+				}
 				if (client_menu_select == CLIENT_DISCONNECT) {
 					threads_are_alive = FALSE;
 				}

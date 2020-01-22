@@ -25,11 +25,14 @@ void strupper(char *str,int len) {
 
 //printing main menu to the client
 int ClientMainMenu(SOCKET m_socket) {
-	char decision[MAX_MSG_TYPE_LEN];
-	int msg_sent = 0;
-	int client_move = 0;
-	bool not_valid_input = TRUE;
 	TransferResult_t SendRes = TRNS_SUCCEEDED;
+	char decision[MAX_MSG_TYPE_LEN];
+	bool not_valid_input = TRUE;
+	int client_move = 0;
+	int msg_sent = 0;
+
+
+
 	printf("Choose what to do next:\n");
 	printf("1. Play against another client\n");
 	printf("2. Play against the server\n");
@@ -58,6 +61,9 @@ int ClientMainMenu(SOCKET m_socket) {
 			scanf("%s", decision);
 		}
 	}
+	if (SendRes == TRNS_FAILED) {
+			return EXIT_CONNECTION;
+		}
 	return msg_sent;
 }
 
@@ -95,8 +101,7 @@ int play_against_cpu(SOCKET m_socket) {
 		break;
 	}
 	if (SendRes == TRNS_FAILED) {
-		printf("Socket error while trying to write data to socket\n");
-		return 0x555;
+		return EXIT_CONNECTION;
 	}
 	return move;
 }
@@ -149,6 +154,9 @@ int ClientGameOverMenu(SOCKET m_socket) {
 			printf("enter a valid input:\n");
 			scanf("%d", &game_over_decision);
 		}
+	}
+	if (SendRes == TRNS_FAILED) {
+		return EXIT_CONNECTION;
 	}
 	return game_over_play;
 
