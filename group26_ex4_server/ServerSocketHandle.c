@@ -292,16 +292,16 @@ static DWORD ClientThread(int priv_index)
 			while (client_chose_versus) {   
 				client_chose_versus = false;
 				err = start_game_vs_player(t_socket, username_str, priv_index);
-				game_semp = OpenSemaphore(SYNCHRONIZE, FALSE, GAME_SEMP_NAME);  /* Open Semaphore handle*/
+				game_semp = OpenSemaphore(SEMAPHORE_MODIFY_STATE | SYNCHRONIZE, FALSE, GAME_SEMP_NAME);  /* Open Semaphore handle*/
 				release_res = ReleaseSemaphore(game_semp, 1, NULL);			/* Release 1 slot from the semaphore */
 				if (err < 0 || release_res == FALSE) {
-					printf("Error while playing versus opponent");
+					printf("Error while playing versus opponent err-%d, rlsrs-%d, lasterror-%d", err,release_res, GetLastError());
 					return ERR;
 					/* NEED TO REPLACE to: goto out, release handles...;*/
 				}
 				send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
 				err = get_response(&rx_msg, t_socket);
-				game_status[priv_index] = false;		/*change to false before even checking for errors, avoid dead-lock*/
+				game_status[priv_index] = false;		
 				if (err) {
 					printf("Error receiving response from user\n");
 					err = ERR;

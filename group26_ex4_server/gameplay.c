@@ -206,7 +206,7 @@ void write_my_move_to_file(Game_Move my_move, int priv_index) {
 
 int open_file_and_write_move(Game_Move my_move, int priv_index) {
 	gamesession_file = fopen("GameSession.txt", "a+");
-	if (!gamesession_file) {
+	if (!gamesession_file) { 
 		printf("File open error \n");
 		return ERR_FILE;
 	}
