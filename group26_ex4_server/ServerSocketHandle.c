@@ -226,7 +226,7 @@ static DWORD ClientThread(int priv_index)
 	bool client_chose_versus = true;
 	int other_player_status = ERR;
 	bool client_chose_cpu = true;
-	bool is_second_game = false;
+	bool player_wants_to_replay = false;
 	e_Msg_Type prev_rx_msg;
 	RX_msg *rx_msg = NULL;
 	bool release_res;
@@ -256,6 +256,7 @@ static DWORD ClientThread(int priv_index)
 			closesocket(*t_socket);
 			return ERR_SOCKET_SEND;
 		}
+		/* --------- Start of SERVER_MAIN_MENU --------------*/
 		if (rx_msg->msg_type == CLIENT_CPU) {
 			client_chose_cpu = true;
 			while (client_chose_cpu) {
@@ -280,46 +281,54 @@ static DWORD ClientThread(int priv_index)
 			}
 		}
 		if (rx_msg->msg_type == CLIENT_VERSUS) {
-			client_chose_versus = true;
-			other_player_status = wait_for_player_to_join(priv_index, game_status); 	//wait for player to join()
-			if (other_player_status == ERR) {
-				SendRes3 = send_msg_zero_params(SERVER_NO_OPPONENTS, *t_socket);
-				/* Missing send msg SERVER_MAIN_MENU after this msg */
-				client_chose_versus = false;
-			}
-
-			/*Evertyhing ok: Found opponent, sent msg, now starting VS game*/
-			while (client_chose_versus) {   
-				client_chose_versus = false;
-				err = start_game_vs_player(t_socket, username_str, priv_index);
-				game_semp = OpenSemaphore(SEMAPHORE_MODIFY_STATE | SYNCHRONIZE, FALSE, GAME_SEMP_NAME);  /* Open Semaphore handle*/
-				release_res = ReleaseSemaphore(game_semp, 1, NULL);			/* Release 1 slot from the semaphore */
-				if (err < 0 || release_res == FALSE) {
-					printf("Error while playing versus opponent err-%d, rlsrs-%d, lasterror-%d", err,release_res, GetLastError());
-					return ERR;
-					/* NEED TO REPLACE to: goto out, release handles...;*/
-				}
-				send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
-				err = get_response(&rx_msg, t_socket);
-				game_status[priv_index] = false;		
-				if (err) {
-					printf("Error receiving response from user\n");
-					err = ERR;
-				}
-				if (rx_msg->msg_type == CLIENT_REPLAY) {
-					/* Need from here to go back to the start of if! not WHILE, IF!*/
-					is_second_game = true;
-					/*Go up, wait for opponent, if opponent not found, search OPPONENT_QUIT and then SERVER_*/
-				}
-				else {
+			player_wants_to_replay = true;
+			while (player_wants_to_replay) {
+				player_wants_to_replay = false;
+				client_chose_versus = true;
+				other_player_status = wait_for_player_to_join(priv_index, game_status); 	//wait for player to join()
+				if (other_player_status == ERR) {
+					SendRes3 = send_msg_zero_params(SERVER_NO_OPPONENTS, *t_socket);
+					/* Missing send msg SERVER_MAIN_MENU after this msg */
 					client_chose_versus = false;
+				}
+
+				/*Evertyhing ok: Found opponent, sent msg, now starting VS game*/
+				while (client_chose_versus) {
+					client_chose_versus = false;
+					err = start_game_vs_player(t_socket, username_str, priv_index);
+					game_semp = OpenSemaphore(SEMAPHORE_MODIFY_STATE | SYNCHRONIZE, FALSE, GAME_SEMP_NAME);  /* Open Semaphore handle*/
+					release_res = ReleaseSemaphore(game_semp, 1, NULL);			/* Release 1 slot from the semaphore */
+					if (err < 0 || release_res == FALSE) {
+						printf("Error while playing versus opponent err-%d, rlsrs-%d, lasterror-%d", err, release_res, GetLastError());
+						return ERR;
+						/* NEED TO REPLACE to: goto out, release handles...;*/
+					}
+					send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
+					err = get_response(&rx_msg, t_socket);
+					game_status[priv_index] = false;
+					if (err) {
+						printf("Error receiving response from user\n");
+						err = ERR;
+					}
+					if (rx_msg->msg_type == CLIENT_REPLAY) {
+						player_wants_to_replay = true;
+						/*Go up, wait for opponent, if opponent not found, search OPPONENT_QUIT and then SERVER_*/
+					}
+					else {
+						client_chose_versus = false;
+					}
 				}
 			}
 		}
 		if (rx_msg->msg_type == CLIENT_MAIN_MENU) {
-			send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
+			/* need to catch ERROR!!!! */
+			SendRes4 = send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
+			if (SendRes4 == TRNS_FAILED) {
+				printf("Service socket error while writing, closing thread.\n");
+				closesocket(*t_socket);
+				return ERR_SOCKET_SEND;
+			}
 		}
-
 		/* NOT IN THE RIGHT PLACE */
 		if (rx_msg->msg_type == CLIENT_DISCONNECT) {
 			err = 0;

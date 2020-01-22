@@ -237,6 +237,7 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index) {
 	TransferResult_t RecvRes;
 	RX_msg *rx_msg = NULL;
 	int err, winner = -1;
+	int err_remove = 0;
 	Game_Move opponent_move, my_move;
 	bool Done = false;
 	bool ret_val;
@@ -287,7 +288,8 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index) {
 			;/*waiting....*/
 		}
 		opponent_move = read_opponent_move_append_mine(priv_index, rx_msg->arg_1, false);
-		if (opponent_move < 0) return ERR_FILE;
+		err_remove = remove("GameSession.txt");
+		if (opponent_move < 0 || err_remove != 0) return ERR;
 		wait_code = WaitForSingleObject(file_mutex_handle, INFINITE); /*Acquiring file mutex again - read opponent move*/
 		if (wait_code != WAIT_OBJECT_0) {
 			printf("Error when waiting for file mutex\n");
