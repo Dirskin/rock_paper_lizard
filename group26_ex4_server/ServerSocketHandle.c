@@ -19,13 +19,55 @@
 #define MAX_STDIN_ARG_SIZE 256
 
 /* Globals */
-HANDLE ThreadHandles[NUM_OF_WORKER_THREADS], check_exit_handle;
+HANDLE ThreadHandles[NUM_OF_WORKER_THREADS];
 SOCKET ThreadInputs[NUM_OF_WORKER_THREADS];
 bool received_exit = false;
+bool game_status[2] = { false, false }; /*array to signal if there are two players who wishes to play against each other*/
 
 
-/*Function Declarations*/
-static DWORD ClientThread(SOCKET *t_socket);
+/*Local/private Function Declarations*/
+static DWORD ClientThread(int priv_index);
+
+static DWORD ServiceThread() {
+	HANDLE game_semp_handle = init_game_semp(); /* Semaphore initialized to ZERO */
+	HANDLE file_mutex_handle = init_file_mutex(); /* creating global mutex to protect file*/
+	DWORD wait_code, wait_code2;
+	bool ret_val;
+	bool was_game = false;
+	int err, err2;
+	if (game_semp_handle == NULL || file_mutex_handle == NULL) return ERR_MUTEX; /* Return error from service thread*/
+	while (!received_exit) {
+		if (!was_game && (game_status[0] == true && game_status[1] == true)) {
+			err = ReleaseSemaphore(game_semp_handle, 1, NULL); /* Adds 2 slots for the semaphore*/
+			err2 = ReleaseSemaphore(game_semp_handle, 1, NULL); /* Adds 2 slots for the semaphore*/
+			if (err == FALSE || err2 == FALSE) {
+				printf("Error releasing semaphore\n");
+				return ERR;
+			}
+			was_game = true;
+		}
+		if (was_game && (game_status[0] == false && game_status[1] == false)) {	/*2 client finished playing, acquiring 2(!) semaphore slots*/
+			wait_code = WaitForSingleObject(game_semp_handle, WAIT_TIME_DEFAULT/2);
+			wait_code2 = WaitForSingleObject(game_semp_handle, WAIT_TIME_DEFAULT/2);
+			if (wait_code != WAIT_OBJECT_0 || wait_code2 != WAIT_OBJECT_0) {
+				printf("Error when trying to acquire semaphore on service thread\n");
+				return ERR_MUTEX;
+			}
+			was_game = false;
+		}
+	}
+	ret_val = CloseHandle(game_semp_handle);
+	if (ret_val == 0) {
+		printf("Error releasing mutex\n");
+	}
+	return (ret_val == 0 ? ERR_MUTEX : 0);			 /* If error releasing mutex return error on exit*/
+}
+
+HANDLE start_service_thread() {
+	HANDLE ret_handle;
+	ret_handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ServiceThread, NULL, 0, NULL);
+	return ret_handle;
+}
 
 static DWORD CheckExit(void)
 {
@@ -40,6 +82,7 @@ static DWORD CheckExit(void)
 		}
 	}
 }
+
 HANDLE start_exit_thread() {
 	HANDLE ret_handle;
 	ret_handle = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)CheckExit, NULL, 0, NULL);
@@ -48,13 +91,15 @@ HANDLE start_exit_thread() {
 
 void MainServer(int port)
 {
-	int Ind;
-	int Loop;
 	SOCKET MainSocket = INVALID_SOCKET;
+	HANDLE service_thread_handle;
+	HANDLE check_exit_handle;
 	unsigned long Address;
 	SOCKADDR_IN service;
-	int bindRes;
 	int ListenRes;
+	int bindRes;
+	int Loop;
+	int Ind;
 
 	// Initialize Winsock.
 	WSADATA wsaData;
@@ -90,6 +135,8 @@ void MainServer(int port)
 	}
 
 	check_exit_handle = start_exit_thread(); /*Run thread in background to check for "exit" in console*/
+	service_thread_handle = start_service_thread();
+
 
 	// Listen on the Socket.
 	ListenRes = listen(MainSocket, SOMAXCONN);
@@ -124,11 +171,15 @@ void MainServer(int port)
 		}
 		else {
 			ThreadInputs[Ind] = AcceptSocket; // shallow copy: don't close, AcceptSocket, instead close, ThreadInputs[Ind] when the time comes.
-			ThreadHandles[Ind] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ClientThread, &(ThreadInputs[Ind]), 0, NULL);
+			ThreadHandles[Ind] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ClientThread, Ind, 0, NULL);
 		}
 	} // while
+
 	/*need to add code to close thread better and to signal threads for finish.*/
 
+	/*NEED TO ADD CLOSE HANDLE FOR THESE TWO:
+	check_exit_handle = start_exit_thread(); 
+	service_thread_handle = start_service_thread(); */
 server_cleanup_3:
 	CleanupWorkerThreads(ThreadHandles, ThreadInputs);
 
@@ -167,18 +218,24 @@ int get_response(RX_msg **rx_msg, SOCKET *t_socket) {
 
 
 //Service thread is the thread that opens for each successful client connection and "talks" to the client.
-static DWORD ClientThread(SOCKET *t_socket)
+static DWORD ClientThread(int priv_index)
 {
 	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED;
+	TransferResult_t SendRes3 = TRNS_SUCCEEDED, SendRes4 = TRNS_SUCCEEDED;
 	char username_str[MAX_USERNAME_LEN];
 	bool client_chose_versus = true;
+	int other_player_status = ERR;
 	bool client_chose_cpu = true;
-	TransferResult_t RecvRes;
+	bool is_second_game = false;
 	e_Msg_Type prev_rx_msg;
 	RX_msg *rx_msg = NULL;
+	bool release_res;
+	HANDLE game_semp;
+	SOCKET *t_socket;
 	BOOL Done = FALSE;
 	int err = ERR;
 
+	t_socket = &ThreadInputs[priv_index];
 	while (!Done)
 	{
 		err = get_response(&rx_msg, t_socket);
@@ -190,6 +247,7 @@ static DWORD ClientThread(SOCKET *t_socket)
 		if (rx_msg->msg_type == CLIENT_REQUEST) {
 			prev_rx_msg = CLIENT_REQUEST;
 			strcpy(username_str, rx_msg->arg_1);
+			printf("I am my name is %s \n", username_str);
 			SendRes = send_msg_zero_params(SERVER_APPROVED, *t_socket);
 			SendRes2 = send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
 		}
@@ -223,31 +281,46 @@ static DWORD ClientThread(SOCKET *t_socket)
 		}
 		if (rx_msg->msg_type == CLIENT_VERSUS) {
 			client_chose_versus = true;
-			while (client_chose_versus) {   /*-----------------------------*/
-				client_chose_cpu = false;
-				err = start_game_vs_player(t_socket, username_str);
-				if (err == ERR) {
-					printf("Error while playing player vs another player\n");
-					goto out;
+			other_player_status = wait_for_player_to_join(priv_index, game_status); 	//wait for player to join()
+			if (other_player_status == ERR) {
+				SendRes3 = send_msg_zero_params(SERVER_NO_OPPONENTS, *t_socket);
+				/* Missing send msg SERVER_MAIN_MENU after this msg */
+				client_chose_versus = false;
+			}
+
+			/*Evertyhing ok: Found opponent, sent msg, now starting VS game*/
+			while (client_chose_versus) {   
+				client_chose_versus = false;
+				err = start_game_vs_player(t_socket, username_str, priv_index);
+				game_semp = OpenSemaphore(SYNCHRONIZE, FALSE, GAME_SEMP_NAME);  /* Open Semaphore handle*/
+				release_res = ReleaseSemaphore(game_semp, 1, NULL);			/* Release 1 slot from the semaphore */
+				if (err < 0 || release_res == FALSE) {
+					printf("Error while playing versus opponent");
+					return ERR;
+					/* NEED TO REPLACE to: goto out, release handles...;*/
 				}
-				send_msg_zero_params(SERVER_GAME_OVER_MENU, t_socket);
+				send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
 				err = get_response(&rx_msg, t_socket);
+				game_status[priv_index] = false;		/*change to false before even checking for errors, avoid dead-lock*/
 				if (err) {
-					printf("Error receiving respons from user\n");
+					printf("Error receiving response from user\n");
 					err = ERR;
 				}
-				/* --------------- need to fix below, to check if the opponent wants to play as well --------------*/
 				if (rx_msg->msg_type == CLIENT_REPLAY) {
-					client_chose_cpu == true;
+					/* Need from here to go back to the start of if! not WHILE, IF!*/
+					is_second_game = true;
+					/*Go up, wait for opponent, if opponent not found, search OPPONENT_QUIT and then SERVER_*/
 				}
 				else {
-					client_chose_cpu = false;
+					client_chose_versus = false;
 				}
 			}
 		}
 		if (rx_msg->msg_type == CLIENT_MAIN_MENU) {
 			send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
 		}
+
+		/* NOT IN THE RIGHT PLACE */
 		if (rx_msg->msg_type == CLIENT_DISCONNECT) {
 			err = 0;
 			goto out;									/*closing client thread, waiting for new connections.*/

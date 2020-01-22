@@ -11,18 +11,26 @@
 #define MAX_MSG_TYPE_LEN 27 /*SERVER_PLAYER_MOVE_REQUEST+\0*/
 #define MAX_USERNAME_LEN 20 /*given in the instructions*/
 #define MAX_MOVE_NAME_LEN 9 /*strlen(SCISSORS)*/
+
+/* Wait Periods*/
+#define WAIT_TIME_CLIENT_GAME 30000
+#define WAIT_TIME_DEFAULT 15000
+
 /* ERR codes*/
 #define ERR -1
 #define ERR_MALLOC (-2)
+	/*socket errors*/
 #define ERR_SOCKET (-11)
 #define ERR_SOCKET_SEND (-12)
 #define ERR_SOCKET_TRANS (-13)
 #define ERR_SOCKET_DISCONNECT (-14)
+	/*thread sync errors*/
 #define ERR_THREAD_WAIT_TIME (-15)
 #define ERR_CLOSING_THREAD (-16)
 #define ERR_MUTEX (-17)
 #define ERR_WRONG_MSG_RECEIVED (-21)
-
+	/*File errors*/
+#define ERR_FILE (-41)
 #define TRY_TO_RECONNECT 333
 #define EXIT_CONNECTION 334
 

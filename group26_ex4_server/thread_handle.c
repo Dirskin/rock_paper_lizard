@@ -52,4 +52,27 @@ void CleanupWorkerThreads(HANDLE *ThreadHandles, SOCKET *ThreadInputs)
 	}
 }
 
+/*initialize named semaphore with starting value OF ZERO */
+HANDLE init_game_semp() {
+	HANDLE game_semp = NULL;
+	game_semp = CreateSemaphore(NULL,	/* Default security attributes */
+		0,		/* Initial Count - STARTING WHEN SEMAPHORE IS ON ZERO, CANNOT CATCH UNTIL RELEASE! */
+		2,		/* Maximum Count */
+		GAME_SEMP_NAME); /* Named semaphore for multi-thread access*/
+	if(game_semp == NULL) {
+		printf("Error acquiring game semaphore\n");
+	}
+	return game_semp;
+}
 
+HANDLE init_file_mutex() {
+	HANDLE file_mutex = NULL;
+	file_mutex = CreateMutex(
+		NULL,   /* default security attributes */
+		FALSE,	/* don't lock mutex immediately */
+		FILE_MUTEX_NAME); /* un-named */
+	if (file_mutex == NULL) {
+		printf("Error acquiring file mutex\n");
+	}
+	return file_mutex;
+}

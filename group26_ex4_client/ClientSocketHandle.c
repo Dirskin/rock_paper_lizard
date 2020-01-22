@@ -158,7 +158,7 @@ static DWORD SendDataThread(Flow_param *flow_param)
 			start_connection = false;
 			continue;
 		}
-		/*if resieved a server connection now waiting for server main menu*/
+		/*if received a server connection now waiting for server main menu*/
 		else {
 			/*Reading from server thread*/
 			hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RecvDataThread, &rx_msg, 0, NULL);
@@ -206,7 +206,8 @@ static DWORD SendDataThread(Flow_param *flow_param)
 					continue;
 				}								
 			}
-			if (rx_msg->msg_type == SERVER_INVITE) {					 
+			if (rx_msg->msg_type == SERVER_INVITE) {	
+				printf("SVR INVT :) \n");
 				threads_are_alive = TRUE;
 				continue;
 			}
