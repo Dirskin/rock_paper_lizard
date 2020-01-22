@@ -77,7 +77,6 @@ int play_against_cpu(SOCKET m_socket) {
 	while (move == ERR) {
 		scanf("%s", decision);
 		strupper(decision, strlen(decision));
-		printf("your decision is %s\n", decision);
 		move = identify_game_move(decision);
 		if (move == ERR) {
 			printf("please enter a valid move:\n");

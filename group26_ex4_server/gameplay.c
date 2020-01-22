@@ -199,6 +199,7 @@ Game_Move read_file_and_return_move() {
 
 void write_my_move_to_file(Game_Move my_move, int priv_index) {
 	fseek(gamesession_file, 0, SEEK_SET); /*rewinds file location so the other player will read what we wrote*/
+	printf("ftell is: %d", ftell(gamesession_file));
 	fprintf(gamesession_file, "%d\n", my_move);
 	wrote_to_file[priv_index] = true;
 }
@@ -215,14 +216,15 @@ int open_file_and_write_move(Game_Move my_move, int priv_index) {
 
 Game_Move read_opponent_move_append_mine(int priv_index, char* arg_1, bool write_mine) {
 	Game_Move opponent_move, my_move;
-	gamesession_file = fopen("GameSession.txt", "a+");
+	gamesession_file = fopen("GameSession.txt", "r+");
 	if (!gamesession_file) {
 		printf("Error trying to read GameSession.txt file\n");
 		return ERR_FILE;
 	}
+	fseek(gamesession_file, 0, SEEK_SET);
 	opponent_move = read_file_and_return_move();
-	my_move = identify_game_move(arg_1);
 	if (write_mine) {
+		my_move = identify_game_move(arg_1);
 		write_my_move_to_file(my_move, priv_index);
 	}
 	fclose(gamesession_file);
@@ -241,8 +243,8 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index) {
 	DWORD wait_code;
 
 	wrote_to_file[priv_index] = false;
-	usernames_str[priv_index] = username_str;							/*setting current active player username*/
-	printf("papook\n");
+	usernames_str[priv_index] = username_str; /*setting current active player username*/
+	Sleep(10);
 	SendRes3 = send_msg_one_param(SERVER_INVITE, *t_socket, usernames_str[!priv_index]);
 	if (SendRes3 == TRNS_FAILED) {
 		printf("Service socket error while writing, closing thread.\n");
@@ -281,7 +283,7 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index) {
 			printf("Error when releasing file mutex\n");
 			return ERR_MUTEX;
 		}
-		while (wrote_to_file[!priv_index]) { /*waiting for other opponent to write his move*/
+		while (!wrote_to_file[!priv_index]) { /*waiting for other opponent to write his move*/
 			;/*waiting....*/
 		}
 		opponent_move = read_opponent_move_append_mine(priv_index, rx_msg->arg_1, false);
@@ -299,11 +301,11 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index) {
 	}
 	winner = find_winner(opponent_move, my_move);			/* converting move(string) to GameMove eNum, then comparing */
 	if (winner == TIE) {
-		RecvRes = send_results_msg_human(t_socket, winner, opponent_move, rx_msg->arg_1, username_str);
+		RecvRes = send_results_msg_human(t_socket, winner, opponent_move, rx_msg->arg_1, priv_index);
 	}
 	else {
 		winner = winner == 1 ? GAME_OPPONENT_WON : GAME_I_WON;						 /*playing against CPU, CPU winner code defined 1*/
-		RecvRes = send_results_msg_human(t_socket, winner, opponent_move, rx_msg->arg_1, username_str);
+		RecvRes = send_results_msg_human(t_socket, winner, opponent_move, rx_msg->arg_1, priv_index);
 	}
 	if (RecvRes != TRNS_SUCCEEDED) {
 		return ERR_SOCKET_SEND;

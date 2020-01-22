@@ -207,7 +207,7 @@ static DWORD SendDataThread(Flow_param *flow_param)
 				}								
 			}
 			if (rx_msg->msg_type == SERVER_INVITE) {	
-				printf("SVR INVT :) \n");
+				printf("Found opponent, game will start soon\n");
 				threads_are_alive = TRUE;
 				continue;
 			}
