@@ -199,7 +199,6 @@ Game_Move read_file_and_return_move() {
 
 void write_my_move_to_file(Game_Move my_move, int priv_index) {
 	fseek(gamesession_file, 0, SEEK_SET); /*rewinds file location so the other player will read what we wrote*/
-	printf("ftell is: %d", ftell(gamesession_file));
 	fprintf(gamesession_file, "%d\n", my_move);
 	wrote_to_file[priv_index] = true;
 }
@@ -244,15 +243,6 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index, c
 	DWORD wait_code;
 
 	wrote_to_file[priv_index] = false;
-
-	//usernames_str[priv_index] = username_str; /*setting current active player username*/
-	//Sleep(10);
-	//SendRes3 = send_msg_one_param(SERVER_INVITE, *t_socket, usernames_str[!priv_index]);
-	//if (SendRes3 == TRNS_FAILED) {
-	//	printf("Service socket error while writing, closing thread.\n");
-	//	closesocket(*t_socket);
-	//	return ERR_SOCKET_SEND;
-	//}
 
 	/*Asking Client Move*/
 	SendRes = send_msg_zero_params(SERVER_PLAYER_MOVE_REQUEST, *t_socket);

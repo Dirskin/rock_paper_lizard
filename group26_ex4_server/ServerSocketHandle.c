@@ -121,14 +121,36 @@ SOCKET nonblock_accept(SOCKET socket) {
 		return INVALID_SOCKET;
 	}
 	if (retval == 1) {
-		printf("New connection arrived., accepting\n");
+		printf("Server says: new connection detected, accepting\n");
 		SOCKET AcceptSocket = accept(socket, NULL, NULL);
 		return AcceptSocket;
 	}
 	return SOCKET_NO_CONNECTIONS;
-
 }
 
+// Initialize all thread handles to NULL, to mark that they have not been initialized
+void thread_handle_null_init(HANDLE *ThreadHandles) {
+	for (int Ind = 0; Ind < NUM_OF_WORKER_THREADS; Ind++)
+		ThreadHandles[Ind] = NULL;
+}
+
+TransferResult_t drop_third_client(SOCKET AcceptSocket) {
+	TransferResult_t retres;
+
+	printf("Server says: 3rd player tries to connect. Server Full. Dropping the connection.\n");
+	retres = send_msg_one_param(SERVER_DENIED, AcceptSocket, "Server is full");
+	Sleep(20);					/*allow the message to arrive to client before closing the socket to avoid error*/
+	closesocket(AcceptSocket); //Closing the socket, dropping the connection.
+
+	return retres;
+}
+
+int close_main_socket(MainSocket) {
+	if (closesocket(MainSocket) == SOCKET_ERROR) {
+		printf("Failed to close MainSocket, error %ld. Ending program\n", WSAGetLastError());
+		return SOCKET_ERROR;
+	}
+}
 
 int MainServer(int port)
 {
@@ -161,9 +183,8 @@ int MainServer(int port)
 			SERVER_ADDRESS_STR);
 		goto server_cleanup_2;
 	}
-
 	service.sin_family = AF_INET;
-	service.sin_addr.s_addr = Address; /* TO CHECK!! --- "127.0.0.1" is the local IP address to which the socket will be bound.*/
+	service.sin_addr.s_addr = Address;
 	service.sin_port = htons(port); 
 
 	bindRes = bind(MainSocket, (SOCKADDR*)&service, sizeof(service));
@@ -171,22 +192,14 @@ int MainServer(int port)
 		printf("bind( ) failed with error %ld. Ending program\n", WSAGetLastError());
 		goto server_cleanup_2;
 	}
-
-	// Listen on the Socket.
-	ListenRes = listen(MainSocket, SOMAXCONN);
+	ListenRes = listen(MainSocket, SOMAXCONN);	// Listen on the Socket.
 	if (ListenRes == SOCKET_ERROR) {
 		printf("Failed listening on socket, error %ld.\n", WSAGetLastError());
 		goto server_cleanup_2;
 	}
-
-	// Initialize all thread handles to NULL, to mark that they have not been initialized
-	for (Ind = 0; Ind < NUM_OF_WORKER_THREADS; Ind++)
-		ThreadHandles[Ind] = NULL;
-
-	printf("Waiting for a clients to connect...\n");
-	//for (Loop = 0; Loop < MAX_LOOPS; Loop++) {	//while (!received_exit); --- probelmatic for some reason
+	thread_handle_null_init(ThreadHandles);
+	printf("Server Says: Waiting for a clients to connect...\n");
 	while(!Done) {
-		//SOCKET AcceptSocket = accept(MainSocket, NULL, NULL);
 		SOCKET AcceptSocket;
 		 do {
 			 if (check_exit_thread_returned(check_exit_handle)) {
@@ -196,19 +209,15 @@ int MainServer(int port)
 			 }
 			 AcceptSocket = nonblock_accept(MainSocket);
 		 } while (AcceptSocket == SOCKET_NO_CONNECTIONS);
-
-		 printf("out --\n");
+		if (Done) break;
 		if (AcceptSocket == INVALID_SOCKET) {
 			printf("Accepting connection with client failed, error %ld\n", WSAGetLastError());
 			goto server_cleanup_3;
 		}
-		printf("Client Connected.\n");
+		printf("Server says: Client Connected.\n");
 		Ind = FindFirstUnusedThreadSlot(ThreadHandles);
 		if (Ind == NUM_OF_WORKER_THREADS) { //no slot is available
-			printf("3rd player tries to connect. Server Full. Dropping the connection.\n");
-			retres = send_msg_one_param(SERVER_DENIED, AcceptSocket, "Server is full");
-			Sleep(10); /*allow the message to arrive to client before closing the socket to avoid error*/
-			closesocket(AcceptSocket); //Closing the socket, dropping the connection.
+			retres = drop_third_client(AcceptSocket);
 			if (retres != TRNS_SUCCEEDED) {
 				printf("error sending deny message\n");
 				goto server_cleanup_3;
@@ -222,10 +231,7 @@ int MainServer(int port)
 server_cleanup_3:
 	CleanupWorkerThreads(ThreadHandles, ThreadInputs);
 server_cleanup_2:
-	if (closesocket(MainSocket) == SOCKET_ERROR) {
-		printf("Failed to close MainSocket, error %ld. Ending program\n", WSAGetLastError());
-		err = SOCKET_ERROR;
-	}
+	err = close_main_socket(MainSocket) == SOCKET_ERROR ? SOCKET_ERROR : err;
 server_cleanup_1:
 	if (WSACleanup() == SOCKET_ERROR) {
 		printf("Failed to close Winsocket, error %ld. Ending program.\n", WSAGetLastError());
@@ -238,13 +244,12 @@ out_handles:
 	}
 	return err;
 }
-
+/* Read, allocate memory, and then return the message structure with parsed arguments*/
 int get_response(RX_msg **rx_msg, SOCKET *t_socket) {
 	TransferResult_t RecvRes;
 	char *AcceptedStr = NULL;
 
 	RecvRes = ReceiveString(&AcceptedStr, *t_socket);
-
 	if (RecvRes == TRNS_FAILED) {
 		printf("Service socket error while reading, closing thread.\n");
 		closesocket(*t_socket);
@@ -256,12 +261,12 @@ int get_response(RX_msg **rx_msg, SOCKET *t_socket) {
 		return ERR_SOCKET_DISCONNECT;
 	}
 	else {
-		printf("Got string : %s\n", AcceptedStr);
 		*rx_msg = parse_message_params(AcceptedStr);
 		return 0;
 	}
 	free(AcceptedStr);
 }
+
 
 int send_server_invite(int priv_index, SOCKET *t_socket ) {
 	TransferResult_t SendRes = TRNS_SUCCEEDED;
@@ -275,7 +280,7 @@ int send_server_invite(int priv_index, SOCKET *t_socket ) {
 	return 0;
 }
 
-
+/* waits for opponent to fill his part in player_status[] and decide if wants to replay*/
 bool wait_for_opponent_replay_decision(int priv_index) {
 	while (player_status[!priv_index] == NOT_DECIDED) {
 		continue;
@@ -288,6 +293,7 @@ bool wait_for_opponent_replay_decision(int priv_index) {
 	}
 }
 
+/* Generate first handshake between client to server */
 int initiate_client_connection(SOCKET *t_socket, RX_msg *rx_msg, char *username_str) {
 	TransferResult_t SendRes = TRNS_SUCCEEDED;
 	int err = 0;
@@ -299,7 +305,7 @@ int initiate_client_connection(SOCKET *t_socket, RX_msg *rx_msg, char *username_
 	}
 	if (rx_msg->msg_type == CLIENT_REQUEST) {
 		strcpy(username_str, rx_msg->arg_1);
-		printf("I am my name is %s \n", username_str);
+		printf("Server Says: connected user is '%s' \n", username_str);
 		SendRes = send_msg_zero_params(SERVER_APPROVED, *t_socket);
 		if (SendRes == TRNS_FAILED) {
 			printf("Service socket error while writing, closing thread.\n");
@@ -309,58 +315,60 @@ int initiate_client_connection(SOCKET *t_socket, RX_msg *rx_msg, char *username_
 	return 0;
 }
 
-//Service thread is the thread that opens for each successful client connection and "talks" to the client.
+/* check if err value is less than zero, prints message if true*/
+bool printf_err(int err, const char* msg) {
+	if (err < 0) {
+		printf("%s\n", msg);
+		return true;
+	}
+	return false;
+}
+
+/* check for error & print if needed. returns true for error. fill error code in err.*/
+bool printf_trans_err(TransferResult_t SendRes, const char* msg, int *err) {
+	if (SendRes == TRNS_FAILED) {
+		printf("Service socket error while writing, closing thread.");
+		*err = ERR_SOCKET_SEND;
+		return true;
+	}
+	return false;
+}
+
+/*ClientThread is the thread that opens for each successful client connection*/
 static DWORD ClientThread(int priv_index)
 {
 	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED;
 	TransferResult_t SendRes3 = TRNS_SUCCEEDED, SendRes4 = TRNS_SUCCEEDED;
-	char username_str[MAX_USERNAME_LEN];
 	bool client_chose_versus = true, client_chose_cpu = true, release_res;
 	int other_player_status = ERR, err = ERR;
-	RX_msg *rx_msg = NULL;
+	char username_str[MAX_USERNAME_LEN];
 	HANDLE game_semp = NULL;
-	SOCKET *t_socket;
+	RX_msg *rx_msg = NULL;
 	BOOL game_on = TRUE;
+	SOCKET *t_socket;
 
 	t_socket = &ThreadInputs[priv_index];
 	err = initiate_client_connection(t_socket, rx_msg, username_str);
 	if (err < 0) goto out_socket;
 	
- /* Connection established, Entering Game loop*/
-	while (game_on) {
+	while (game_on) {  /* Connection established, Entering Game loop*/
 		SendRes2 = send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
-		if (SendRes2 == TRNS_FAILED) {
-			printf("Service socket error while writing, closing thread.\n");
-			err = ERR_SOCKET_SEND;
-			goto out_socket;
-		}
+		if(printf_trans_err(SendRes2, "Service socket error while writing, closing thread.", &err)) goto out_socket;
+
 		err = get_response(&rx_msg, t_socket);
-		if (err < 0) {
-			printf("ERROR: Communication with player failed\n");
-			goto out_socket;
-		}
+		if (printf_err(err, "ERROR: Communication with player failed\n")) goto out_socket;
 		/*  -- User menu option 1: play against CPU --*/
 		if (rx_msg->msg_type == CLIENT_CPU) {
 			client_chose_cpu = true;
 			while (client_chose_cpu) {
 				client_chose_cpu = false;
 				err = start_game_vs_cpu(t_socket, username_str);
-				if (err < 0) {
-					printf("Error while playing player vs CPU\n");
-					goto out;
-				}
+				if (printf_err(err, "Error while playing player vs CPU")) goto out_socket;
+
 				send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
 				err = get_response(&rx_msg, t_socket);
-				if (err < 0) {
-					printf("Error receiving respons from user\n");
-					goto out_socket;
-				}
-				if (rx_msg->msg_type == CLIENT_REPLAY) {
-					client_chose_cpu = true;
-				}
-				else {
-					client_chose_cpu = false;
-				}
+				if (printf_err(err, "Error receiving respons from user")) goto out_socket;
+				client_chose_cpu = rx_msg->msg_type == CLIENT_REPLAY ? true : false;
 			}
 		}
 		/*  -- User menu option 2: play against other player --*/
@@ -369,11 +377,8 @@ static DWORD ClientThread(int priv_index)
 			other_player_status = wait_for_player_to_join(priv_index, game_status); 	//wait for player to join()
 			if (other_player_status == ERR) {
 				SendRes3 = send_msg_zero_params(SERVER_NO_OPPONENTS, *t_socket);
-				if (SendRes3 == TRNS_FAILED) {
-					printf("Service socket error while writing, closing thread.\n");
-					goto out_socket;
-				}
-				/* Missing send msg SERVER_MAIN_MENU after this msg */
+				if (printf_trans_err(SendRes3, "Service socket error while writing, closing thread.", &err)) goto out_socket;
+
 				client_chose_versus = false;
 			}
 			else if (other_player_status == ERR_SEMAPHORE) {
@@ -394,23 +399,18 @@ static DWORD ClientThread(int priv_index)
 					printf("Error while playing versus opponent err-%d, rlsrs-%d, lasterror-%d", err, release_res, GetLastError());
 					goto out_semp_socket;
 				}
-				send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
+				SendRes2 = send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
+				if (printf_trans_err(SendRes2, "Service socket error while writing, closing thread.", &err)) goto out_socket;
 				err = get_response(&rx_msg, t_socket);
 				game_status[priv_index] = false;
-				if (err < 0) {
-					printf("Error receiving response from user\n");
-					goto out_semp_socket;
-				}
+				if (printf_err(err, "Error receiving response from user")) goto out_semp_socket;
 				if (rx_msg->msg_type == CLIENT_REPLAY) {
 					player_status[priv_index] = WANT_REPLAY;
 					client_chose_versus = wait_for_opponent_replay_decision(priv_index);
 					if (!client_chose_versus) { /*Opponent doesnt want to play*/
 						SendRes4 = send_msg_zero_params(SERVER_OPPONENT_QUIT, *t_socket);
 						printf("Server opponent quit\n");
-						if (SendRes4 == TRNS_FAILED) {
-							printf("Service socket error while writing, closing thread.\n");
-							goto out_semp_socket;
-						}
+						if (printf_trans_err(SendRes4, "Service socket error while writing, closing thread.", &err)) goto out_semp_socket;
 					}
 				}
 				else if (rx_msg->msg_type == CLIENT_MAIN_MENU) {
@@ -422,13 +422,13 @@ static DWORD ClientThread(int priv_index)
 					goto out_socket;
 				}
 			}
-			
 		}
 		/*  -- User menu option 3: quit --*/
 		else if (rx_msg->msg_type == CLIENT_DISCONNECT) {
 			err = 0;
-			goto out_socket;									/*closing client thread, waiting for new connections.*/
+			goto out_socket;		/*closing client thread, waiting for new connections.*/
 		}
+		free(rx_msg);	/*MALLOC in get_response(), free here */
 	}
 out_semp_socket:
 	if (game_semp) {
