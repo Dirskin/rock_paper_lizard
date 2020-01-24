@@ -53,7 +53,6 @@ int failed_connection(const char *server_ip_addr, int port, int flag_type) {
 static DWORD RecvDataThread(RX_msg *rx_msg)
 {
 	TransferResult_t RecvRes;
-	e_Msg_Type msg_type;
 	char *AcceptedStr = NULL;
 
 	RecvRes = ReceiveString(&AcceptedStr, m_socket);
@@ -132,7 +131,7 @@ int CreateNewConnectionServer(Flow_param *flow_param) {
 			return APPROVED_BY_SERVER;
 		}
 		/*--- third client is trying to connect to the server, denying his connection ---*/
-		else if (rx_msg->msg_type == ERR_CONNECTION_DENIED) {
+		else if (rx_msg->msg_type == SERVER_DENIED) {
 			client_move = failed_connection(flow_param->ip, flow_param->port, F_SERVER_DENIED_CONNECTION);
 			if (client_move == TRY_TO_RECONNECT) {
 				connecting = true;
@@ -152,17 +151,14 @@ static DWORD SendDataThread(Flow_param *flow_param)
 	BOOL ret_val;
 	e_Msg_Type msg_rcv = 0;
 	int client_menu_select = 0;
-	char SendStr[256];
 	bool start_connection = true;
 	bool threads_are_alive = TRUE;
 	RX_msg *rx_msg = NULL;
 	char opponent_name[MAX_USERNAME_LEN];
 
-	while (threads_are_alive)
-	{
+	while (threads_are_alive){
 		/*Starting a new connection to the server, the only valid message is server_connected*/
-		if (start_connection)
-		{
+		if (start_connection){
 			start_connection = CreateNewConnectionServer(flow_param);
 			start_connection = false;
 			continue;
@@ -184,93 +180,85 @@ static DWORD SendDataThread(Flow_param *flow_param)
 				free(rx_msg);
 				return ERR;                        
 			}
+			switch (rx_msg->msg_type) {
 			/*Connection from the server is gone*/
-			if (rx_msg->msg_type == ERR_CONNECTION_LOST) {
+			case (ERR_CONNECTION_LOST):
 				client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
 				if (client_menu_select == TRY_TO_RECONNECT) {
-					start_connection = CreateNewConnectionServer(flow_param);			
+					start_connection = CreateNewConnectionServer(flow_param);
+					break;
 				}
 				else {
-					threads_are_alive = FALSE;
+					free(rx_msg);
+					return EXIT_CONNECTION;					
 				}
-			}
-
-			if (rx_msg->msg_type == SERVER_MAIN_MENU) {			
+			case (SERVER_MAIN_MENU):			
 				client_menu_select = ClientMainMenu(m_socket);
-
 				if (client_menu_select == EXIT_CONNECTION) {
 					client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
 					if (client_menu_select == TRY_TO_RECONNECT) {
-						continue;
+						start_connection = CreateNewConnectionServer(flow_param);
+						break;
 					}
 					else {
+						free(rx_msg);
 						return EXIT_CONNECTION;
 					}
 				}
 				if (client_menu_select == CLIENT_DISCONNECT) {
 					threads_are_alive = FALSE;
+					break;
 				}
 				else {
-					threads_are_alive = TRUE;
-					continue;
+					break;
 				}								
-			}
-			else if (rx_msg->msg_type == SERVER_INVITE) {	
+			case (SERVER_INVITE):
 				printf("Found opponent, game will start soon\n");
 				threads_are_alive = TRUE;
-				continue;
-			}
-			else if (rx_msg->msg_type == SERVER_PLAYER_MOVE_REQUEST) {	
+				break;
+			case (SERVER_PLAYER_MOVE_REQUEST) :
 				client_menu_select = play_against_cpu(m_socket);
 				if (client_menu_select == EXIT_CONNECTION) {
 					client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
 					if (client_menu_select == TRY_TO_RECONNECT) {
-						continue;
+						start_connection = CreateNewConnectionServer(flow_param);
+						break;
 					}
 					else {
+						free(rx_msg);
 						return EXIT_CONNECTION;
 					}
 				}
-				threads_are_alive = TRUE;
-				continue;
-			}
-
-			else if (rx_msg->msg_type == SERVER_GAME_RESULTS) {
+				break;
+			case (SERVER_GAME_RESULTS) :
 				msg_rcv = game_play_results(m_socket, rx_msg, flow_param->username, opponent_name);
-				threads_are_alive = TRUE;
-				continue;
-			}
-
-			else if (rx_msg->msg_type == SERVER_GAME_OVER_MENU) {
+				break;
+			case(SERVER_GAME_OVER_MENU):
 				client_menu_select = ClientGameOverMenu(m_socket);
 				if (client_menu_select == EXIT_CONNECTION) {
 					client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
 					if (client_menu_select == TRY_TO_RECONNECT) {
-						continue;
+						start_connection = CreateNewConnectionServer(flow_param);
+						break;
 					}
 					else {
+						free(rx_msg);
 						return EXIT_CONNECTION;
 					}
 				}
-				threads_are_alive = TRUE;
-				continue;
-			}
-			else if (rx_msg->msg_type == SERVER_NO_OPPONENTS) {
+				break;
+			case (SERVER_NO_OPPONENTS):
 				printf("Couldn't find opponent\n");
 				threads_are_alive = TRUE;
-				continue;
-			}
-			else if (rx_msg->msg_type == SERVER_OPPONENT_QUIT) {
+				break;
+			case(SERVER_OPPONENT_QUIT):
 				printf("%s has left the game!\n", opponent_name);
 				threads_are_alive = TRUE;
-				continue;
+				break;
 			}
-
-				//threads_are_alive = FALSE;
 		}
 	}
 	free(rx_msg);
-	Sleep(1000);
 	return (DWORD)0;
 }
 
@@ -280,6 +268,7 @@ int MainClient(const char *server_ip_addr, int server_port, char *username) {
 	SOCKADDR_IN clientService;
 	Flow_param flow_param;
 	DWORD wait_code;
+	BOOL ret_val;
 	HANDLE hThread;
 	int err;
 	// Initialize Winsock.
@@ -314,8 +303,11 @@ int MainClient(const char *server_ip_addr, int server_port, char *username) {
 	hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)SendDataThread, &flow_param, 0, NULL);
 	wait_code = WaitForSingleObject(hThread, INFINITE);
 	GetExitCodeThread(hThread, &err);
-	CloseHandle(hThread);
-
+	ret_val = CloseHandle(hThread);
+	if (FALSE == ret_val) {
+		printf("Error when closing thread: %d\n", GetLastError());
+		return ERR;
+	}
 out:
 	closesocket(m_socket);
 	WSACleanup();
