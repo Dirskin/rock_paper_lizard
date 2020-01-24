@@ -150,12 +150,13 @@ int close_main_socket(MainSocket) {
 		printf("Failed to close MainSocket, error %ld. Ending program\n", WSAGetLastError());
 		return SOCKET_ERROR;
 	}
+	return 0;
 }
 
 int MainServer(int port)
 {
 	HANDLE service_thread_handle, check_exit_handle;
-	int ListenRes, bindRes, Loop, Ind, err = 0;
+	int ListenRes, bindRes, Ind, err = 0;
 	TransferResult_t retres;
 	SOCKET MainSocket = INVALID_SOCKET;
 	unsigned long Address;
@@ -244,6 +245,7 @@ out_handles:
 	}
 	return err;
 }
+
 /* Read, allocate memory, and then return the message structure with parsed arguments*/
 int get_response(RX_msg **rx_msg, SOCKET *t_socket) {
 	TransferResult_t RecvRes;
@@ -438,6 +440,5 @@ out_semp_socket:
 	}
 out_socket: 
 	closesocket(*t_socket);
-out:
 	return err;
 }
