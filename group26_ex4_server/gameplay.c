@@ -253,13 +253,6 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index) {
 		return ERR_SOCKET_SEND;
 	}
 
-	file_mutex_handle = OpenMutex(SYNCHRONIZE, FALSE, FILE_MUTEX_NAME); /*Open named mutex*/
-	wait_code = WaitForSingleObject(file_mutex_handle, INFINITE); /*Waiting for other player decision - INFINITE wait according to instructions*/
-	if (wait_code != WAIT_OBJECT_0) {
-		printf("Error when waiting for file mutex\n");
-		return ERR_MUTEX;
-	}
-	/*Acquired mutex, now in protected zone, can access file*/
 	/*Asking Client Move*/
 	SendRes = send_msg_zero_params(SERVER_PLAYER_MOVE_REQUEST, *t_socket);
 	if (SendRes == TRNS_FAILED) return ERR_SOCKET_SEND;
@@ -269,9 +262,18 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index) {
 		printf("Error receiving message while playing vs player\n");
 		return ERR;
 	}
+	my_move = identify_game_move(rx_msg->arg_1);
+
+	/* Acquiring Mutex to read opponent move & decide result*/
+	file_mutex_handle = OpenMutex(SYNCHRONIZE, FALSE, FILE_MUTEX_NAME); /*Open named mutex*/
+	wait_code = WaitForSingleObject(file_mutex_handle, INFINITE);		/*Waiting for other player decision - INFINITE wait according to instructions*/
+	if (wait_code != WAIT_OBJECT_0) {
+		printf("Error when waiting for file mutex\n");
+		return ERR_MUTEX;
+	}
+	/*Acquired mutex, now in protected zone, can access file*/
 
 	/* Check if need to write + read, or only read from file*/
-	my_move = identify_game_move(rx_msg->arg_1);
 	if (file_exists()) {
 		opponent_move = read_opponent_move_append_mine(priv_index, rx_msg->arg_1, true);
 		if (opponent_move < 0) return ERR_FILE;
