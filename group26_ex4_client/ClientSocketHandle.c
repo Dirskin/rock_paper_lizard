@@ -128,8 +128,16 @@ int CreateNewConnectionServer(Flow_param *flow_param) {
 			}
 		}
 		//recieved server connected message 
-		if (rx_msg->msg_type == SERVER_APPROVED) {
+		else if (rx_msg->msg_type == SERVER_APPROVED) {
 			return APPROVED_BY_SERVER;
+		}
+		/*--- third client is trying to connect to the server, denying his connection ---*/
+		else if (rx_msg->msg_type == ERR_CONNECTION_DENIED) {
+			client_move = failed_connection(flow_param->ip, flow_param->port, F_SERVER_DENIED_CONNECTION);
+			if (client_move == TRY_TO_RECONNECT) {
+				connecting = true;
+				continue;
+			}
 		}
 	}
 	return 0;
