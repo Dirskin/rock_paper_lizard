@@ -199,7 +199,6 @@ Game_Move read_file_and_return_move() {
 
 void write_my_move_to_file(Game_Move my_move, int priv_index) {
 	fseek(gamesession_file, 0, SEEK_SET); /*rewinds file location so the other player will read what we wrote*/
-	printf("ftell is: %d", ftell(gamesession_file));
 	fprintf(gamesession_file, "%d\n", my_move);
 	wrote_to_file[priv_index] = true;
 }
