@@ -28,6 +28,7 @@
 #define ERR_THREAD_WAIT_TIME (-15)
 #define ERR_CLOSING_THREAD (-16)
 #define ERR_MUTEX (-17)
+#define ERR_SEMAPHORE (-18)
 #define ERR_WRONG_MSG_RECEIVED (-21)
 	/*File errors*/
 #define ERR_FILE (-41)
@@ -49,6 +50,8 @@ typedef enum {
 } e_Msg_Type;
 
 typedef enum { TRNS_FAILED, TRNS_DISCONNECTED, TRNS_SUCCEEDED } TransferResult_t;
+
+typedef enum  { NOT_DECIDED, WANT_REPLAY, QUIT } player_replay_status;
 
 /* structs */
 typedef struct RX_msg {

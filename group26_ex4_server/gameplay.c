@@ -23,7 +23,7 @@
 /* Global file pointer fol all the threads to read*/
 FILE *gamesession_file = NULL;
 bool wrote_to_file[2] = { false, false };
-char *usernames_str[2] = { NULL, NULL };
+//char *usernames_str[2] = { NULL, NULL };
 
 Game_Move generate_cpu_move() {
 	time_t t;
@@ -111,7 +111,7 @@ TransferResult_t send_results_msg_cpu(SOCKET *t_socket, int winner, Game_Move cp
 }
 
 
-TransferResult_t send_results_msg_human(SOCKET *t_socket, int winner, Game_Move opponent_move, char *player_move, int priv_index) {
+TransferResult_t send_results_msg_human(SOCKET *t_socket, int winner, Game_Move opponent_move, char *player_move, int priv_index, char *usernames_str[]) {
 	char *opponent_name = usernames_str[!priv_index];
 	char *my_name = usernames_str[priv_index];
 	char opponent_move_str[MAX_MOVE_NAME_LEN];
@@ -231,7 +231,7 @@ Game_Move read_opponent_move_append_mine(int priv_index, char* arg_1, bool write
 	return opponent_move;
 }
 
-int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index) {
+int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index, char *usernames_str) {
 	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED, SendRes3 = TRNS_SUCCEEDED;
 	HANDLE file_mutex_handle = NULL;
 	TransferResult_t RecvRes;
@@ -244,14 +244,15 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index) {
 	DWORD wait_code;
 
 	wrote_to_file[priv_index] = false;
-	usernames_str[priv_index] = username_str; /*setting current active player username*/
-	Sleep(10);
-	SendRes3 = send_msg_one_param(SERVER_INVITE, *t_socket, usernames_str[!priv_index]);
-	if (SendRes3 == TRNS_FAILED) {
-		printf("Service socket error while writing, closing thread.\n");
-		closesocket(*t_socket);
-		return ERR_SOCKET_SEND;
-	}
+
+	//usernames_str[priv_index] = username_str; /*setting current active player username*/
+	//Sleep(10);
+	//SendRes3 = send_msg_one_param(SERVER_INVITE, *t_socket, usernames_str[!priv_index]);
+	//if (SendRes3 == TRNS_FAILED) {
+	//	printf("Service socket error while writing, closing thread.\n");
+	//	closesocket(*t_socket);
+	//	return ERR_SOCKET_SEND;
+	//}
 
 	/*Asking Client Move*/
 	SendRes = send_msg_zero_params(SERVER_PLAYER_MOVE_REQUEST, *t_socket);
@@ -305,11 +306,11 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index) {
 	}
 	winner = find_winner(opponent_move, my_move);			/* converting move(string) to GameMove eNum, then comparing */
 	if (winner == TIE) {
-		RecvRes = send_results_msg_human(t_socket, winner, opponent_move, rx_msg->arg_1, priv_index);
+		RecvRes = send_results_msg_human(t_socket, winner, opponent_move, rx_msg->arg_1, priv_index, usernames_str);
 	}
 	else {
 		winner = winner == 1 ? GAME_OPPONENT_WON : GAME_I_WON;						 /*playing against CPU, CPU winner code defined 1*/
-		RecvRes = send_results_msg_human(t_socket, winner, opponent_move, rx_msg->arg_1, priv_index);
+		RecvRes = send_results_msg_human(t_socket, winner, opponent_move, rx_msg->arg_1, priv_index, usernames_str);
 	}
 	if (RecvRes != TRNS_SUCCEEDED) {
 		return ERR_SOCKET_SEND;
@@ -321,12 +322,16 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index) {
 int wait_for_player_to_join(int priv_index, bool *game_status) {
 	HANDLE game_semp;
 	DWORD wait_code;
-
+	bool release_res;
 	game_status[priv_index] = true;									/* Marks myself as waiting for opponent*/
 	game_semp = OpenSemaphore(SYNCHRONIZE, FALSE, GAME_SEMP_NAME);  /* Open Semaphore handle*/
 	wait_code = WaitForSingleObject(game_semp, WAIT_TIME_CLIENT_GAME);
 	if (wait_code != WAIT_OBJECT_0) {
-		printf("Error when waiting for opponent - No opponent found\n");
+		release_res = ReleaseSemaphore(game_semp, 1, NULL);			/* Release 1 slot from the semaphore */
+		if (release_res == FALSE) {
+			printf("Error while playing versus opponent  rlsrs-%d, lasterror-%d",release_res, GetLastError());
+			return ERR_SEMAPHORE;
+		}
 		CloseHandle(game_semp);
 		game_status[priv_index] = false;
 		return ERR;						/* No Opponent found, send NO_OPPONENT msg*/
