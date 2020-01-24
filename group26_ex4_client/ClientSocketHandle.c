@@ -12,12 +12,16 @@
 #include "../shared/SocketSendRecvTools.h"
 #include "../shared/common.h"
 
-
+/*Global varibles declerations*/
 SOCKET m_socket;
 expecting_user_input=false;
 bool start_connection = true;
 bool threads_are_alive = TRUE;
 SOCKADDR_IN clientService;
+/*Functions declerations*/
+int connet_to_socket(SOCKADDR_IN clientService, const char *server_ip_addr, int server_port);
+
+/*-------Code------*/
 
 /*main failure prints*/
 int failed_connection(const char *server_ip_addr, int port, int flag_type) {
@@ -163,8 +167,7 @@ int CreateNewConnectionServer(Flow_param *flow_param) {
 }
 
 /*Sending data thread - main client thread*/
-static DWORD SendDataThread(Flow_param *flow_param)
-{
+static DWORD SendDataThread(Flow_param *flow_param)   {
 	TransferResult_t SendRes;
 	HANDLE hThread;
 	DWORD wait_code;
@@ -172,14 +175,13 @@ static DWORD SendDataThread(Flow_param *flow_param)
 	e_Msg_Type msg_rcv = 0;
 	int client_menu_select = 0;
 	int failed_menu_select = 0;
+	int connection_lost_menu_select = 0;
 	RX_msg *rx_msg = NULL;
 	char opponent_name[MAX_USERNAME_LEN];
 	int socket_err;
 	bool trying_to_connect = false;
-
 	while (threads_are_alive){
-		/*Starting a new connection to the server, the only valid message is server_connected*/
-		if (start_connection){
+		if (start_connection){/*Starting a new connection to the server, the only valid message is server_connected*/
 			start_connection = false;
 			client_menu_select = CreateNewConnectionServer(flow_param);
 			if (client_menu_select == EXIT_CONNECTION) {
@@ -189,13 +191,11 @@ static DWORD SendDataThread(Flow_param *flow_param)
 				start_connection = true;
 			}
 			continue;  }
-		/*Reading from server thread*/
-		hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RecvDataThread, &rx_msg, 0, NULL);
+		hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RecvDataThread, &rx_msg, 0, NULL);  /*Reading from server thread*/
 		wait_code = WaitForSingleObject(hThread, INFINITE); //RESPONSE time is set to infinite sec NEED TO BE 15!
 		if (WAIT_OBJECT_0 != wait_code) {
 			printf("Waited for 15 seconds, server lost\n");
-			TerminateThread(hThread, 0x555);
-		}
+			TerminateThread(hThread, 0x555);   }
 		/*Getting the command from the thread*/
 		GetExitCodeThread(hThread, &rx_msg);
 		ret_val = CloseHandle(hThread);
@@ -206,7 +206,8 @@ static DWORD SendDataThread(Flow_param *flow_param)
 		switch (rx_msg->msg_type) {
 		/*Connection from the server is gone*/
 		case (ERR_CONNECTION_LOST):
-			client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
+			connection_lost_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
+			goto failed_connection_decision;
 		case (SERVER_MAIN_MENU):			
 			client_menu_select = ClientMainMenu(m_socket);
 			if (client_menu_select == CLIENT_DISCONNECT) {
@@ -236,6 +237,7 @@ static DWORD SendDataThread(Flow_param *flow_param)
 			threads_are_alive = TRUE;
 			break;
 		}
+failed_connection_decision:
 		if (client_menu_select == EXIT_CONNECTION) {
 			failed_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
 			if (failed_menu_select == TRY_TO_RECONNECT) {
@@ -243,16 +245,24 @@ static DWORD SendDataThread(Flow_param *flow_param)
 				socket_err = connet_to_socket(clientService, flow_param->ip, flow_param->port);
 				if (socket_err == EXIT_CONNECTION) {
 					free(rx_msg);
-					return EXIT_CONNECTION;
-				}
+					return EXIT_CONNECTION;   }
 				else {
-					continue;
-				}
+					continue;  }
 			}
 			else if (failed_menu_select == EXIT_CONNECTION || client_menu_select == CLIENT_DISCONNECT) {
 				free(rx_msg);
-				return EXIT_CONNECTION;
-			}
+				return EXIT_CONNECTION;  }
+		}
+		if (connection_lost_menu_select == EXIT_CONNECTION) {
+			free(rx_msg);
+			return EXIT_CONNECTION;  }
+		if (connection_lost_menu_select == TRY_TO_RECONNECT) {
+			socket_err = connet_to_socket(clientService, flow_param->ip, flow_param->port);
+			if (socket_err == EXIT_CONNECTION) {
+				free(rx_msg);
+				return EXIT_CONNECTION;  }
+			else {
+				continue;   }
 		}
 	}
 	free(rx_msg);

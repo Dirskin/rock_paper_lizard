@@ -3,7 +3,6 @@
 #define SOCKET_EXAMPLE_CLIENT_H
 
 int MainClient(const char *server_ip_addr, int server_port, char *username);
-int connet_to_socket(SOCKADDR_IN clientService, const char *server_ip_addr, int server_port);
 
 /* F = Flags, for flags*/
 #define F_SERVER_CONNECTION_FAILED	((int)(-1012))
