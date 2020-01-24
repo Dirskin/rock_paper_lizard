@@ -88,7 +88,7 @@ TransferResult_t send_msg_zero_params(e_Msg_Type msg_type, SOCKET t_socket) {
 		strcpy(sendbuf, "SERVER_PLAYER_MOVE_REQUEST:\n");
 		break;
 	case SERVER_NO_OPPONENTS:
-		strcpy(sendbuf, "SERVER_PLAYER_MOVE_REQUEST:\n");
+		strcpy(sendbuf, "SERVER_NO_OPPONENTS:\n");
 		break;
 	case SERVER_LEADERBOARD_MENU:
 		strcpy(sendbuf, "SERVER_LEADERBOARD_MENU:\n");

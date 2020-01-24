@@ -324,7 +324,7 @@ int wait_for_player_to_join(int priv_index, bool *game_status) {
 	DWORD wait_code;
 	bool release_res;
 	game_status[priv_index] = true;									/* Marks myself as waiting for opponent*/
-	game_semp = OpenSemaphore(SYNCHRONIZE, FALSE, GAME_SEMP_NAME);  /* Open Semaphore handle*/
+	game_semp = OpenSemaphore(SEMAPHORE_MODIFY_STATE | SYNCHRONIZE, FALSE, GAME_SEMP_NAME);  /* Open Semaphore handle*/
 	wait_code = WaitForSingleObject(game_semp, WAIT_TIME_CLIENT_GAME);
 	if (wait_code != WAIT_OBJECT_0) {
 		release_res = ReleaseSemaphore(game_semp, 1, NULL);			/* Release 1 slot from the semaphore */
