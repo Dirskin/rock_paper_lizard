@@ -244,15 +244,6 @@ int start_game_vs_player(SOCKET *t_socket, char *username_str, int priv_index, c
 
 	wrote_to_file[priv_index] = false;
 
-	//usernames_str[priv_index] = username_str; /*setting current active player username*/
-	//Sleep(10);
-	//SendRes3 = send_msg_one_param(SERVER_INVITE, *t_socket, usernames_str[!priv_index]);
-	//if (SendRes3 == TRNS_FAILED) {
-	//	printf("Service socket error while writing, closing thread.\n");
-	//	closesocket(*t_socket);
-	//	return ERR_SOCKET_SEND;
-	//}
-
 	/*Asking Client Move*/
 	SendRes = send_msg_zero_params(SERVER_PLAYER_MOVE_REQUEST, *t_socket);
 	if (SendRes == TRNS_FAILED) return ERR_SOCKET_SEND;

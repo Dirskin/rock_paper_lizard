@@ -267,6 +267,7 @@ int get_response(RX_msg **rx_msg, SOCKET *t_socket) {
 	free(AcceptedStr);
 }
 
+
 int send_server_invite(int priv_index, SOCKET *t_socket ) {
 	TransferResult_t SendRes = TRNS_SUCCEEDED;
 	Sleep(10); /*sync with client 2 username_str*/
@@ -279,6 +280,7 @@ int send_server_invite(int priv_index, SOCKET *t_socket ) {
 	return 0;
 }
 
+/* waits for opponent to fill his part in player_status[] and decide if wants to replay*/
 bool wait_for_opponent_replay_decision(int priv_index) {
 	while (player_status[!priv_index] == NOT_DECIDED) {
 		continue;
@@ -291,6 +293,7 @@ bool wait_for_opponent_replay_decision(int priv_index) {
 	}
 }
 
+/* Generate first handshake between client to server */
 int initiate_client_connection(SOCKET *t_socket, RX_msg *rx_msg, char *username_str) {
 	TransferResult_t SendRes = TRNS_SUCCEEDED;
 	int err = 0;
@@ -312,58 +315,60 @@ int initiate_client_connection(SOCKET *t_socket, RX_msg *rx_msg, char *username_
 	return 0;
 }
 
-//Service thread is the thread that opens for each successful client connection and "talks" to the client.
+/* check if err value is less than zero, prints message if true*/
+bool printf_err(int err, const char* msg) {
+	if (err < 0) {
+		printf("%s\n", msg);
+		return true;
+	}
+	return false;
+}
+
+/* check for error & print if needed. returns true for error. fill error code in err.*/
+bool printf_trans_err(TransferResult_t SendRes, const char* msg, int *err) {
+	if (SendRes == TRNS_FAILED) {
+		printf("Service socket error while writing, closing thread.");
+		*err = ERR_SOCKET_SEND;
+		return true;
+	}
+	return false;
+}
+
+/*ClientThread is the thread that opens for each successful client connection*/
 static DWORD ClientThread(int priv_index)
 {
 	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED;
 	TransferResult_t SendRes3 = TRNS_SUCCEEDED, SendRes4 = TRNS_SUCCEEDED;
-	char username_str[MAX_USERNAME_LEN];
 	bool client_chose_versus = true, client_chose_cpu = true, release_res;
 	int other_player_status = ERR, err = ERR;
-	RX_msg *rx_msg = NULL;
+	char username_str[MAX_USERNAME_LEN];
 	HANDLE game_semp = NULL;
-	SOCKET *t_socket;
+	RX_msg *rx_msg = NULL;
 	BOOL game_on = TRUE;
+	SOCKET *t_socket;
 
 	t_socket = &ThreadInputs[priv_index];
 	err = initiate_client_connection(t_socket, rx_msg, username_str);
 	if (err < 0) goto out_socket;
 	
- /* Connection established, Entering Game loop*/
-	while (game_on) {
+	while (game_on) {  /* Connection established, Entering Game loop*/
 		SendRes2 = send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
-		if (SendRes2 == TRNS_FAILED) {
-			printf("Service socket error while writing, closing thread.\n");
-			err = ERR_SOCKET_SEND;
-			goto out_socket;
-		}
+		if(printf_trans_err(SendRes2, "Service socket error while writing, closing thread.", &err)) goto out_socket;
+
 		err = get_response(&rx_msg, t_socket);
-		if (err < 0) {
-			printf("ERROR: Communication with player failed\n");
-			goto out_socket;
-		}
+		if (printf_err(err, "ERROR: Communication with player failed\n")) goto out_socket;
 		/*  -- User menu option 1: play against CPU --*/
 		if (rx_msg->msg_type == CLIENT_CPU) {
 			client_chose_cpu = true;
 			while (client_chose_cpu) {
 				client_chose_cpu = false;
 				err = start_game_vs_cpu(t_socket, username_str);
-				if (err < 0) {
-					printf("Error while playing player vs CPU\n");
-					goto out;
-				}
+				if (printf_err(err, "Error while playing player vs CPU")) goto out_socket;
+
 				send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
 				err = get_response(&rx_msg, t_socket);
-				if (err < 0) {
-					printf("Error receiving respons from user\n");
-					goto out_socket;
-				}
-				if (rx_msg->msg_type == CLIENT_REPLAY) {
-					client_chose_cpu = true;
-				}
-				else {
-					client_chose_cpu = false;
-				}
+				if (printf_err(err, "Error receiving respons from user")) goto out_socket;
+				client_chose_cpu = rx_msg->msg_type == CLIENT_REPLAY ? true : false;
 			}
 		}
 		/*  -- User menu option 2: play against other player --*/
@@ -372,11 +377,8 @@ static DWORD ClientThread(int priv_index)
 			other_player_status = wait_for_player_to_join(priv_index, game_status); 	//wait for player to join()
 			if (other_player_status == ERR) {
 				SendRes3 = send_msg_zero_params(SERVER_NO_OPPONENTS, *t_socket);
-				if (SendRes3 == TRNS_FAILED) {
-					printf("Service socket error while writing, closing thread.\n");
-					goto out_socket;
-				}
-				/* Missing send msg SERVER_MAIN_MENU after this msg */
+				if (printf_trans_err(SendRes3, "Service socket error while writing, closing thread.", &err)) goto out_socket;
+
 				client_chose_versus = false;
 			}
 			else if (other_player_status == ERR_SEMAPHORE) {
@@ -397,37 +399,29 @@ static DWORD ClientThread(int priv_index)
 					printf("Error while playing versus opponent err-%d, rlsrs-%d, lasterror-%d", err, release_res, GetLastError());
 					goto out_semp_socket;
 				}
-				send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
+				SendRes2 = send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
+				if (printf_trans_err(SendRes2, "Service socket error while writing, closing thread.", &err)) goto out_socket;
 				err = get_response(&rx_msg, t_socket);
-				/*------------------------ make FREE()*/
 				game_status[priv_index] = false;
-				if (err < 0) {
-					printf("Error receiving response from user\n");
-					goto out_semp_socket;
-				}
+				if (printf_err(err, "Error receiving response from user")) goto out_semp_socket;
 				if (rx_msg->msg_type == CLIENT_REPLAY) {
 					player_status[priv_index] = WANT_REPLAY;
 					client_chose_versus = wait_for_opponent_replay_decision(priv_index);
 					if (!client_chose_versus) { /*Opponent doesnt want to play*/
 						SendRes4 = send_msg_zero_params(SERVER_OPPONENT_QUIT, *t_socket);
 						printf("Server opponent quit\n");
-						if (SendRes4 == TRNS_FAILED) {
-							printf("Service socket error while writing, closing thread.\n");
-							goto out_semp_socket;
-						}
+						if (printf_trans_err(SendRes4, "Service socket error while writing, closing thread.", &err)) goto out_semp_socket;
 					}
 				}
 				else if (rx_msg->msg_type == CLIENT_MAIN_MENU) {
 					player_status[priv_index] = QUIT;
 					client_chose_versus = false;
 				}
-				free(rx_msg);
 				if (CloseHandle(game_semp) == FALSE) {
 					printf("error closing semaphore handle\n");
 					goto out_socket;
 				}
 			}
-			
 		}
 		/*  -- User menu option 3: quit --*/
 		else if (rx_msg->msg_type == CLIENT_DISCONNECT) {
