@@ -328,7 +328,5 @@ int wait_for_player_to_join(int priv_index, bool *game_status) {
 	}
 	/*opponent found, can start playing*/
 
-
-	//NEED TO MOVE THIS TO THE CORRECT PLACE AFTER FINISHING!
 	return 0;
 }

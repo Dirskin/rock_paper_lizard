@@ -376,29 +376,30 @@ static DWORD ClientThread(int priv_index)
 		/*  -- User menu option 2: play against other player --*/
 		else if (rx_msg->msg_type == CLIENT_VERSUS) {
 			client_chose_versus = true;
-			other_player_status = wait_for_player_to_join(priv_index, game_status); 	//wait for player to join()
-			if (other_player_status == ERR) {
-				SendRes3 = send_msg_zero_params(SERVER_NO_OPPONENTS, *t_socket);
-				if (printf_trans_err(SendRes3, "Service socket error while writing, closing thread.", &err)) goto out_socket;
-
-				client_chose_versus = false;
-			}
-			else if (other_player_status == ERR_SEMAPHORE) {
-				goto out_socket;
-			} else {
-				usernames_str[priv_index] = username_str; /*setting current active player username*/
-				err = send_server_invite(priv_index, t_socket);
-				if (err != 0) goto out_socket;
-			}
-			/*Evertyhing ok: Found opponent, sent msg, now starting VS game*/
 			while (client_chose_versus) {
+				other_player_status = wait_for_player_to_join(priv_index, game_status); 	//wait for player to join()
+				if (other_player_status == ERR) {
+					SendRes3 = send_msg_zero_params(SERVER_NO_OPPONENTS, *t_socket);
+					if (printf_trans_err(SendRes3, "Service socket error while writing, closing thread.", &err)) goto out_socket;
+
+					client_chose_versus = false;
+				}
+				else if (other_player_status == ERR_SEMAPHORE) {
+					goto out_socket;
+				} else {
+					usernames_str[priv_index] = username_str; /*setting current active player username*/
+					err = send_server_invite(priv_index, t_socket);
+					if (err != 0) goto out_socket;
+				}
+				/*Evertyhing ok: Found opponent, sent msg, now starting VS game*/
 				player_status[priv_index] = NOT_DECIDED;
 				client_chose_versus = false;
 				err = start_game_vs_player(t_socket, username_str, priv_index, usernames_str);
 				game_semp = OpenSemaphore(SEMAPHORE_MODIFY_STATE | SYNCHRONIZE, FALSE, GAME_SEMP_NAME);  /* Open Semaphore handle*/
+				game_status[priv_index] = false;
 				release_res = ReleaseSemaphore(game_semp, 1, NULL);			/* Release 1 slot from the semaphore */
 				if (err < 0 || release_res == FALSE) {
-					printf("Error while playing versus opponent err-%d, rlsrs-%d, lasterror-%d", err, release_res, GetLastError());
+					printf("Error while playing versus opponent err-%d, rlsrs-%d, lasterror-%d\n", err, release_res, GetLastError());
 					goto out_semp_socket;
 				}
 				SendRes2 = send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
