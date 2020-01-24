@@ -1,3 +1,7 @@
+/* Project 4 - Into to OS */
+/* Authors: Ron Diskin, Alex Bogdanov */
+/* Description: Main Server module. handles arguments and calling ServerSocketHandle module */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "serversockethandle.h"
