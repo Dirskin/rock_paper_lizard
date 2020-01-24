@@ -126,9 +126,24 @@ SOCKET nonblock_accept(SOCKET socket) {
 		return AcceptSocket;
 	}
 	return SOCKET_NO_CONNECTIONS;
-
 }
 
+// Initialize all thread handles to NULL, to mark that they have not been initialized
+void thread_handle_null_init(HANDLE *ThreadHandles) {
+	for (int Ind = 0; Ind < NUM_OF_WORKER_THREADS; Ind++)
+		ThreadHandles[Ind] = NULL;
+}
+
+TransferResult_t drop_third_client(SOCKET AcceptSocket) {
+	TransferResult_t retres;
+
+	printf("Server says: 3rd player tries to connect. Server Full. Dropping the connection.\n");
+	retres = send_msg_one_param(SERVER_DENIED, AcceptSocket, "Server is full");
+	Sleep(10);					/*allow the message to arrive to client before closing the socket to avoid error*/
+	closesocket(AcceptSocket); //Closing the socket, dropping the connection.
+
+	return retres;
+}
 
 int MainServer(int port)
 {
@@ -161,9 +176,8 @@ int MainServer(int port)
 			SERVER_ADDRESS_STR);
 		goto server_cleanup_2;
 	}
-
 	service.sin_family = AF_INET;
-	service.sin_addr.s_addr = Address; /* TO CHECK!! --- "127.0.0.1" is the local IP address to which the socket will be bound.*/
+	service.sin_addr.s_addr = Address;
 	service.sin_port = htons(port); 
 
 	bindRes = bind(MainSocket, (SOCKADDR*)&service, sizeof(service));
@@ -171,22 +185,14 @@ int MainServer(int port)
 		printf("bind( ) failed with error %ld. Ending program\n", WSAGetLastError());
 		goto server_cleanup_2;
 	}
-
-	// Listen on the Socket.
-	ListenRes = listen(MainSocket, SOMAXCONN);
+	ListenRes = listen(MainSocket, SOMAXCONN);	// Listen on the Socket.
 	if (ListenRes == SOCKET_ERROR) {
 		printf("Failed listening on socket, error %ld.\n", WSAGetLastError());
 		goto server_cleanup_2;
 	}
-
-	// Initialize all thread handles to NULL, to mark that they have not been initialized
-	for (Ind = 0; Ind < NUM_OF_WORKER_THREADS; Ind++)
-		ThreadHandles[Ind] = NULL;
-
-	printf("Waiting for a clients to connect...\n");
-	//for (Loop = 0; Loop < MAX_LOOPS; Loop++) {	//while (!received_exit); --- probelmatic for some reason
+	thread_handle_null_init(ThreadHandles);
+	printf("Server Says: Waiting for a clients to connect...\n");
 	while(!Done) {
-		//SOCKET AcceptSocket = accept(MainSocket, NULL, NULL);
 		SOCKET AcceptSocket;
 		 do {
 			 if (check_exit_thread_returned(check_exit_handle)) {
@@ -196,19 +202,15 @@ int MainServer(int port)
 			 }
 			 AcceptSocket = nonblock_accept(MainSocket);
 		 } while (AcceptSocket == SOCKET_NO_CONNECTIONS);
-
-		 printf("out --\n");
+		if (Done) break;
 		if (AcceptSocket == INVALID_SOCKET) {
 			printf("Accepting connection with client failed, error %ld\n", WSAGetLastError());
 			goto server_cleanup_3;
 		}
-		printf("Client Connected.\n");
+		printf("Server says: Client Connected.\n");
 		Ind = FindFirstUnusedThreadSlot(ThreadHandles);
 		if (Ind == NUM_OF_WORKER_THREADS) { //no slot is available
-			printf("3rd player tries to connect. Server Full. Dropping the connection.\n");
-			retres = send_msg_one_param(SERVER_DENIED, AcceptSocket, "Server is full");
-			Sleep(10); /*allow the message to arrive to client before closing the socket to avoid error*/
-			closesocket(AcceptSocket); //Closing the socket, dropping the connection.
+			retres = drop_third_client(AcceptSocket);
 			if (retres != TRNS_SUCCEEDED) {
 				printf("error sending deny message\n");
 				goto server_cleanup_3;
@@ -274,7 +276,6 @@ int send_server_invite(int priv_index, SOCKET *t_socket ) {
 	}
 	return 0;
 }
-
 
 bool wait_for_opponent_replay_decision(int priv_index) {
 	while (player_status[!priv_index] == NOT_DECIDED) {
