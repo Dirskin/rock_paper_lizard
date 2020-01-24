@@ -24,6 +24,7 @@
 #define ERR_SOCKET_SEND (-12)
 #define ERR_SOCKET_TRANS (-13)
 #define ERR_SOCKET_DISCONNECT (-14)
+#define SOCKET_NO_CONNECTIONS (19)
 	/*thread sync errors*/
 #define ERR_THREAD_WAIT_TIME (-15)
 #define ERR_CLOSING_THREAD (-16)

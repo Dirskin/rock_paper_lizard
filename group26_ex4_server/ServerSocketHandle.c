@@ -96,6 +96,7 @@ bool check_exit_thread_returned(HANDLE check_exit_thread) {
 	GetExitCodeThread(check_exit_thread, &ret_val);
 	if (ret_val != STILL_ACTIVE) {
 		if (ret_val == 0) {
+			printf("exiting...\n");
 			return true;
 		}
 		else {
@@ -106,6 +107,29 @@ bool check_exit_thread_returned(HANDLE check_exit_thread) {
 	else return false;
 }
 
+SOCKET nonblock_accept(SOCKET socket) {
+	int retval = 0;
+	fd_set set;
+	FD_ZERO(&set);
+	FD_SET(socket, &set);
+	struct timeval timeout;
+	timeout.tv_usec = 1000;
+	timeout.tv_sec = 0;
+	retval = select(socket + 1, &set, NULL, NULL, &timeout);
+	if (retval == SOCKET_ERROR) {
+		printf("Error in select() for non blocking accpet()\n");
+		return INVALID_SOCKET;
+	}
+	if (retval == 1) {
+		printf("New connection arrived., accepting\n");
+		SOCKET AcceptSocket = accept(socket, NULL, NULL);
+		return AcceptSocket;
+	}
+	return SOCKET_NO_CONNECTIONS;
+
+}
+
+
 int MainServer(int port)
 {
 	HANDLE service_thread_handle, check_exit_handle;
@@ -114,6 +138,7 @@ int MainServer(int port)
 	SOCKET MainSocket = INVALID_SOCKET;
 	unsigned long Address;
 	SOCKADDR_IN service;
+	bool Done = false;
 
 	check_exit_handle = start_exit_thread(); /*Run thread in background to check for "exit" in console*/
 	service_thread_handle = start_service_thread();
@@ -159,10 +184,20 @@ int MainServer(int port)
 		ThreadHandles[Ind] = NULL;
 
 	printf("Waiting for a clients to connect...\n");
-	for (Loop = 0; Loop < MAX_LOOPS; Loop++) {	//while (!received_exit); --- probelmatic for some reason
-		if (check_exit_thread_returned(check_exit_handle)) break;   /* According to Forum message, "Can assume no exit will 
-																	 * be written to server if clients connected"*/
-		SOCKET AcceptSocket = accept(MainSocket, NULL, NULL);
+	//for (Loop = 0; Loop < MAX_LOOPS; Loop++) {	//while (!received_exit); --- probelmatic for some reason
+	while(!Done) {
+		//SOCKET AcceptSocket = accept(MainSocket, NULL, NULL);
+		SOCKET AcceptSocket;
+		 do {
+			 if (check_exit_thread_returned(check_exit_handle)) {
+				 Done = true;
+				 break;   /* According to Forum message, "Can assume no exit will
+						   * be written to server if clients connected"*/
+			 }
+			 AcceptSocket = nonblock_accept(MainSocket);
+		 } while (AcceptSocket == SOCKET_NO_CONNECTIONS);
+
+		 printf("out --\n");
 		if (AcceptSocket == INVALID_SOCKET) {
 			printf("Accepting connection with client failed, error %ld\n", WSAGetLastError());
 			goto server_cleanup_3;
@@ -172,6 +207,7 @@ int MainServer(int port)
 		if (Ind == NUM_OF_WORKER_THREADS) { //no slot is available
 			printf("3rd player tries to connect. Server Full. Dropping the connection.\n");
 			retres = send_msg_one_param(SERVER_DENIED, AcceptSocket, "Server is full");
+			Sleep(10); /*allow the message to arrive to client before closing the socket to avoid error*/
 			closesocket(AcceptSocket); //Closing the socket, dropping the connection.
 			if (retres != TRNS_SUCCEEDED) {
 				printf("error sending deny message\n");
