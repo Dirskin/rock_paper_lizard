@@ -33,8 +33,6 @@ int ClientMainMenu(SOCKET m_socket) {
 	int client_move = 0;
 	int msg_sent = 0;
 
-
-
 	printf("Choose what to do next:\n");
 	printf("1. Play against another client\n");
 	printf("2. Play against the server\n");
@@ -129,7 +127,6 @@ int game_play_results(SOCKET m_socket, RX_msg *rx_msg, char *username, char *opp
 			printf("%s won!\n", opponent_name);
 		}
 	}
-
 	return 0;
 }
 
