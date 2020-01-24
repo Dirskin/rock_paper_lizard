@@ -13,7 +13,8 @@
 
 SOCKET m_socket;
 expecting_user_input=false;
-
+bool start_connection = true;
+bool threads_are_alive = TRUE;
 
 int failed_connection(const char *server_ip_addr, int port, int flag_type) {
 	int decision;
@@ -151,8 +152,6 @@ static DWORD SendDataThread(Flow_param *flow_param)
 	BOOL ret_val;
 	e_Msg_Type msg_rcv = 0;
 	int client_menu_select = 0;
-	bool start_connection = true;
-	bool threads_are_alive = TRUE;
 	RX_msg *rx_msg = NULL;
 	char opponent_name[MAX_USERNAME_LEN];
 
@@ -161,101 +160,86 @@ static DWORD SendDataThread(Flow_param *flow_param)
 		if (start_connection){
 			start_connection = CreateNewConnectionServer(flow_param);
 			start_connection = false;
-			continue;
+			continue;  }
+		/*Reading from server thread*/
+		hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RecvDataThread, &rx_msg, 0, NULL);
+		wait_code = WaitForSingleObject(hThread, INFINITE); //RESPONSE time is set to infinite sec NEED TO BE 15!
+		if (WAIT_OBJECT_0 != wait_code) {
+			printf("Waited for 15 seconds, server lost\n");
+			TerminateThread(hThread, 0x555);
 		}
-		/*if received a server connection now waiting for server main menu*/
-		else {
-			/*Reading from server thread*/
-			hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)RecvDataThread, &rx_msg, 0, NULL);
-			wait_code = WaitForSingleObject(hThread, INFINITE); //RESPONSE time is set to infinite sec NEED TO BE 15!
-			if (WAIT_OBJECT_0 != wait_code) {
-				printf("Waited for 15 seconds, server lost\n");
-				TerminateThread(hThread, 0x555);
-			}
-			/*Getting the command from the thread*/
-			GetExitCodeThread(hThread, &rx_msg);
-			ret_val = CloseHandle(hThread);
-			if (FALSE == ret_val) {
-				printf("Error when closing thread: %d\n", GetLastError());
+		/*Getting the command from the thread*/
+		GetExitCodeThread(hThread, &rx_msg);
+		ret_val = CloseHandle(hThread);
+		if (FALSE == ret_val) {
+			printf("Error when closing thread: %d\n", GetLastError());
+			free(rx_msg);
+			return ERR; }
+		switch (rx_msg->msg_type) {
+		/*Connection from the server is gone*/
+		case (ERR_CONNECTION_LOST):
+			client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
+			if (client_menu_select == TRY_TO_RECONNECT) {
+				start_connection = true;
+				break;	}
+			else {
 				free(rx_msg);
-				return ERR;                        
-			}
-			switch (rx_msg->msg_type) {
-			/*Connection from the server is gone*/
-			case (ERR_CONNECTION_LOST):
+				return EXIT_CONNECTION;	}
+		case (SERVER_MAIN_MENU):			
+			client_menu_select = ClientMainMenu(m_socket);
+			if (client_menu_select == EXIT_CONNECTION) {
 				client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
 				if (client_menu_select == TRY_TO_RECONNECT) {
-					start_connection = CreateNewConnectionServer(flow_param);
-					break;
-				}
+					start_connection = true;
+					break; }
 				else {
 					free(rx_msg);
-					return EXIT_CONNECTION;					
-				}
-			case (SERVER_MAIN_MENU):			
-				client_menu_select = ClientMainMenu(m_socket);
-				if (client_menu_select == EXIT_CONNECTION) {
-					client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
-					if (client_menu_select == TRY_TO_RECONNECT) {
-						start_connection = CreateNewConnectionServer(flow_param);
-						break;
-					}
-					else {
-						free(rx_msg);
-						return EXIT_CONNECTION;
-					}
-				}
-				if (client_menu_select == CLIENT_DISCONNECT) {
-					threads_are_alive = FALSE;
-					break;
-				}
-				else {
-					break;
-				}								
-			case (SERVER_INVITE):
-				printf("Found opponent, game will start soon\n");
-				threads_are_alive = TRUE;
-				break;
-			case (SERVER_PLAYER_MOVE_REQUEST) :
-				client_menu_select = play_against_cpu(m_socket);
-				if (client_menu_select == EXIT_CONNECTION) {
-					client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
-					if (client_menu_select == TRY_TO_RECONNECT) {
-						start_connection = CreateNewConnectionServer(flow_param);
-						break;
-					}
-					else {
-						free(rx_msg);
-						return EXIT_CONNECTION;
-					}
-				}
-				break;
-			case (SERVER_GAME_RESULTS) :
-				msg_rcv = game_play_results(m_socket, rx_msg, flow_param->username, opponent_name);
-				break;
-			case(SERVER_GAME_OVER_MENU):
-				client_menu_select = ClientGameOverMenu(m_socket);
-				if (client_menu_select == EXIT_CONNECTION) {
-					client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
-					if (client_menu_select == TRY_TO_RECONNECT) {
-						start_connection = CreateNewConnectionServer(flow_param);
-						break;
-					}
-					else {
-						free(rx_msg);
-						return EXIT_CONNECTION;
-					}
-				}
-				break;
-			case (SERVER_NO_OPPONENTS):
-				printf("Couldn't find opponent\n");
-				threads_are_alive = TRUE;
-				break;
-			case(SERVER_OPPONENT_QUIT):
-				printf("%s has left the game!\n", opponent_name);
-				threads_are_alive = TRUE;
-				break;
+					return EXIT_CONNECTION; }
 			}
+			if (client_menu_select == CLIENT_DISCONNECT) {
+				threads_are_alive = FALSE;
+				break; }
+			else 
+				break;						
+		case (SERVER_INVITE):
+			printf("Found opponent, game will start soon\n");
+			threads_are_alive = TRUE;
+			break;
+		case (SERVER_PLAYER_MOVE_REQUEST) :
+			client_menu_select = play_against_cpu(m_socket);
+			if (client_menu_select == EXIT_CONNECTION) {
+				client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
+				if (client_menu_select == TRY_TO_RECONNECT) {
+					start_connection = true;
+					break; }
+				else {
+					free(rx_msg);
+					return EXIT_CONNECTION; }
+			}
+			break;
+		case (SERVER_GAME_RESULTS) :
+			msg_rcv = game_play_results(m_socket, rx_msg, flow_param->username, opponent_name);
+			break;
+		case(SERVER_GAME_OVER_MENU):
+			client_menu_select = ClientGameOverMenu(m_socket);
+			if (client_menu_select == EXIT_CONNECTION) {
+				client_menu_select = failed_connection(flow_param->ip, flow_param->port, F_SERVER_CONNECTION_LOST);
+				if (client_menu_select == TRY_TO_RECONNECT) {
+					start_connection = true;
+					break; }
+				else {
+					free(rx_msg);
+					return EXIT_CONNECTION; }
+			}
+			break;
+		case (SERVER_NO_OPPONENTS):
+			printf("Couldn't find opponent\n");
+			threads_are_alive = TRUE;
+			break;
+		case(SERVER_OPPONENT_QUIT):
+			printf("%s has left the game!\n", opponent_name);
+			threads_are_alive = TRUE;
+			break;
 		}
 	}
 	free(rx_msg);
