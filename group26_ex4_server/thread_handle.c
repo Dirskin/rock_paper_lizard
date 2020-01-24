@@ -1,3 +1,5 @@
+/* This Module holds all kind of thread functionalities*/
+
 #include <stdio.h>
 #include "thread_handle.h"
 #include "../shared/common.h"

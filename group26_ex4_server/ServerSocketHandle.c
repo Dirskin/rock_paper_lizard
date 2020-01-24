@@ -1,3 +1,7 @@
+/* Project 4 - Intro to OS */
+/* Authors: Ron Diskin, Alex Bogdanov */
+/* Description: Socket handle module. Handles I/O to sockets, calls gameplay module functions for the game */
+
 #define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
@@ -337,10 +341,8 @@ bool printf_trans_err(TransferResult_t SendRes, const char* msg, int *err) {
 }
 
 /*ClientThread is the thread that opens for each successful client connection*/
-static DWORD ClientThread(int priv_index)
-{
-	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED;
-	TransferResult_t SendRes3 = TRNS_SUCCEEDED, SendRes4 = TRNS_SUCCEEDED;
+static DWORD ClientThread(int priv_index) {
+	TransferResult_t SendRes = TRNS_SUCCEEDED, SendRes2 = TRNS_SUCCEEDED, SendRes3 = TRNS_SUCCEEDED, SendRes4 = TRNS_SUCCEEDED;
 	bool client_chose_versus = true, client_chose_cpu = true, release_res;
 	int other_player_status = ERR, err = ERR;
 	char username_str[MAX_USERNAME_LEN];
@@ -352,11 +354,9 @@ static DWORD ClientThread(int priv_index)
 	t_socket = &ThreadInputs[priv_index];
 	err = initiate_client_connection(t_socket, rx_msg, username_str);
 	if (err < 0) goto out_socket;
-	
 	while (game_on) {  /* Connection established, Entering Game loop*/
 		SendRes2 = send_msg_zero_params(SERVER_MAIN_MENU, *t_socket);
 		if(printf_trans_err(SendRes2, "Service socket error while writing, closing thread.", &err)) goto out_socket;
-
 		err = get_response(&rx_msg, t_socket);
 		if (printf_err(err, "ERROR: Communication with player failed\n")) goto out_socket;
 		/*  -- User menu option 1: play against CPU --*/
@@ -366,7 +366,6 @@ static DWORD ClientThread(int priv_index)
 				client_chose_cpu = false;
 				err = start_game_vs_cpu(t_socket, username_str);
 				if (printf_err(err, "Error while playing player vs CPU")) goto out_socket;
-
 				send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
 				err = get_response(&rx_msg, t_socket);
 				if (printf_err(err, "Error receiving respons from user")) goto out_socket;
@@ -381,7 +380,6 @@ static DWORD ClientThread(int priv_index)
 				if (other_player_status == ERR) {
 					SendRes3 = send_msg_zero_params(SERVER_NO_OPPONENTS, *t_socket);
 					if (printf_trans_err(SendRes3, "Service socket error while writing, closing thread.", &err)) goto out_socket;
-
 					client_chose_versus = false;
 				}
 				else if (other_player_status == ERR_SEMAPHORE) {

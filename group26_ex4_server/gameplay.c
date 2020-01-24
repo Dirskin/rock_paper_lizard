@@ -1,3 +1,7 @@
+/* Project 4 - Intro to OS */
+/* Authors: Ron Diskin, Alex Bogdanov */
+/* Description:gameplay module. Handles all the game functionality */
+
 #define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
@@ -18,7 +22,7 @@
 #define PLAYER1_WON 51
 #define GAME_I_WON 52
 #define GAME_OPPONENT_WON 53
-#define TIE 53
+#define TIE 54
 
 /* Global file pointer fol all the threads to read*/
 FILE *gamesession_file = NULL;

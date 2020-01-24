@@ -1,3 +1,4 @@
+/* Constants! defines, ERR codes, other codes, structs, enum - for all the solution*/
 #pragma once
 
 #ifndef COMMON_H

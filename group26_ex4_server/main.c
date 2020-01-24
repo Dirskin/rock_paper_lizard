@@ -1,4 +1,4 @@
-/* Project 4 - Into to OS */
+/* Project 4 - Intro to OS */
 /* Authors: Ron Diskin, Alex Bogdanov */
 /* Description: Main Server module. handles arguments and calling ServerSocketHandle module */
 
