@@ -1,8 +1,9 @@
+/*Client game play, this module is printing the sending the gameplay of the client*/
+
 #define _CRT_SECURE_NO_WARNINGS
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
 #include <stdio.h>
-#include <string.h>
 #include <string.h>
 #include <winsock2.h>
 #include "ClientGamePlay.h"
@@ -13,6 +14,7 @@
 #include "../shared/common.h"
 
 
+/*Uppering the string*/
 void strupper(char *str,int len) {
 	for (int i = 0; i < len; i++) {
 		if (str[i] >= 'a' && str[i] <= 'z')
@@ -67,7 +69,9 @@ int ClientMainMenu(SOCKET m_socket) {
 	return msg_sent;
 }
 
-
+/*play against the cpu and human, main function, printing the main print and choosing
+you play agains the opponent
+*/
 int play_against_cpu(SOCKET m_socket) {
 	char decision[MAX_MOVE_NAME_LEN+10];
 	Game_Move move = ERR;
@@ -105,6 +109,7 @@ int play_against_cpu(SOCKET m_socket) {
 	return move;
 }
 
+/*Gameplay results prints*/
 int game_play_results(SOCKET m_socket, RX_msg *rx_msg, char *username, char *opponent_name) {
 	char player_move[MAX_MOVE_NAME_LEN], opponent_move[MAX_MOVE_NAME_LEN];
 	char winner_name[MAX_USERNAME_LEN];

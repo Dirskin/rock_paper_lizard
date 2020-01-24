@@ -1,3 +1,8 @@
+/* Project 4 - Into to OS */
+/* Authors: Ron Diskin, Alex Bogdanov */
+/* Description: Main Client module. handles arguments and calling ClientSocketHandle module */
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "clientsockethandle.h"
