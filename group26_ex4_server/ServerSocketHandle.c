@@ -168,7 +168,8 @@ void MainServer(int port)
 
 		if (Ind == NUM_OF_WORKER_THREADS) //no slot is available
 		{
-			printf("No slots available for client, dropping the connection.\n");
+			printf("3rd player tries to connect. Server Full. Dropping the connection.\n");
+			send_msg_one_param(SERVER_DENIED, AcceptSocket, "Server is full: 2/2 players are now playing\n");
 			closesocket(AcceptSocket); //Closing the socket, dropping the connection.
 		}
 		else {
@@ -345,8 +346,7 @@ static DWORD ClientThread(int priv_index)
 				release_res = ReleaseSemaphore(game_semp, 1, NULL);			/* Release 1 slot from the semaphore */
 				if (err < 0 || release_res == FALSE) {
 					printf("Error while playing versus opponent err-%d, rlsrs-%d, lasterror-%d", err, release_res, GetLastError());
-					return ERR;
-					/* NEED TO REPLACE to: goto out, release handles...;*/
+					goto out_socket;
 				}
 				send_msg_zero_params(SERVER_GAME_OVER_MENU, *t_socket);
 				err = get_response(&rx_msg, t_socket);
