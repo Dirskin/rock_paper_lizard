@@ -12,5 +12,5 @@ int main(int argc, char *argv[])
 	}
 	port = atoi(argv[1]);
 	printf("listening on %d...\n", port);
-	MainServer(port);
+	return MainServer(port);
 }
